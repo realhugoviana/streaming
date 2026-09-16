@@ -62,9 +62,6 @@ struct InstanceData {
 /*
     HELPER FUNCTIONS
 */
-int get_arr_length(void** arr) {
-    return sizeof(arr) / sizeof(arr[0]);
-}
 
 /// @brief Function for the raw parser
 /// @return The instance of the problem
