@@ -12,9 +12,7 @@ int main(int argc, char* argv[]) {
     }
 
     // By design, unconnect cache are not in the model
-    InstanceData instance = parseFile(argv[1]);
-    showInstance(&instance);
-    instance = reduce(instance);
+    InstanceData instance = parser();
     showInstance(&instance);
     return 0;
 }
