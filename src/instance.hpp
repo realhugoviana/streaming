@@ -50,142 +50,31 @@ struct InstanceData {
     bool** cache_affectation; // Matrix of boolean to describe the affectation of video to cache. Shape: VxC (row: video, col: cache)
 };
 
-
-
-
-
-
-
-
-
-
 /*
-    HELPER FUNCTIONS
+    PARSER RELATED FUNCTIONS
 */
 
-/// @brief Function for the raw parser
-/// @return The instance of the problem
-InstanceData parser() {
-    // Retrieve Instance Parameter
-    InstanceParameters ip;
-    std::cin >> ip.V >> ip.E >> ip.R >> ip.C >> ip.X;
+// Initialisation of array, matrices and instances
+template <typename T> T* initialiseArray(int quantity);
+bool** initialiseCacheAffectation(int V, int C);
+InstanceData initialiseInstance(InstanceParameters ip);
 
-    // Initialise all the arrays
-    Video* video_sizes = (Video*)malloc(ip.V*sizeof(Video));
-    Request* requests = (Request*)malloc(ip.R*sizeof(Request));
-    Endpoint* endpoints = (Endpoint*)malloc(ip.E*sizeof(Endpoint));
+// Parser 
+InstanceData videoParser(InstanceData instance);
+InstanceData endpointParser(InstanceData instance);
+InstanceData requestParser(InstanceData instance);
+InstanceData parser();
 
-    // Initialise the cache affectation matrix and initialise it to 0
-    bool** cache_affectation = (bool**)malloc(ip.V*sizeof(bool*));
-    for (int v = 0; v < ip.V; v++) {
-        cache_affectation[v] = (bool*)malloc(ip.C*sizeof(bool));
-        for (int k = 0; k < ip.C; k++) {
-            cache_affectation[v][k] = false;
-        }
-    }
+// Instance viewer
+void showInstance(InstanceData* instance);
 
-    // Retrieve the video inputs
-    for (int v = 0; v<ip.V; v++) {
-        Video video;
-        video.idV = v;
-        std::cin >> video.vsize;
 
-        video_sizes[v] = video;
-    }
 
-    // Retrieve the endpoints
-    int latency_dc, K;
-    for (int e = 0; e<ip.E; e++) {
-        std::cin >> latency_dc >> K;
-        endpoints[e].dc_latency = latency_dc;
-        endpoints[e].idE = e;
-        endpoints[e].K = K;
-        
-        /// And there connections
-        EndpointCacheConnection* endpoint_connections = (EndpointCacheConnection*)malloc(K*sizeof(EndpointCacheConnection));
-        for (int k = 0;  k<K; k++) {
-            std::cin >> endpoint_connections[k].idC >> endpoint_connections[k].cache_latency;
-        }
-        endpoints[e].endpoint_connections = endpoint_connections;
-    }
-    
-    // Retrieve the requests
-    int idV, idE, count;
-    for (int r = 0; r<ip.R; r++) {
-        Request demand;
-        std::cin >> demand.idV >> demand.idE >> demand.count;
-        requests[r] = demand;
-    }
 
-    // Pack the information
-    InstanceData instance = {ip, video_sizes, endpoints, requests, cache_affectation};
-    
-    // Return the instance
-    return instance;
-}
-     
 
-/// @brief Method to show the parameters of the instance
-/// @param instance 
-void showInstance(InstanceData* instance) {
-    // Global information
-    std::printf("\n---[Global Data]---\nNumber of Video (V): %d\nNumber of Endpoint (E): %d\nNumber of Request (R): %d\nNumber of Cache Server (C): %d\nSize of Cache Server (X): %dMo\n\n", 
-        instance->ip.V,
-        instance->ip.E,
-        instance->ip.R,
-        instance->ip.C,
-        instance->ip.X
-    );
 
-    // Information on the Videos
-    std::cout << "---[Videos Data]---" << std::endl;
-    for (int v = 0; v<instance->ip.V; v++) {
-        printf("Video number [%d] of size [%dMo]\n", 
-            instance->video_sizes[v].idV,
-            instance->video_sizes[v].vsize
-        );
-    }
-    std::cout << std::endl;
 
-    // Information on the Endpoints
-    for (int e = 0; e<instance->ip.E; e++) {
-        Endpoint endpoint = instance->endpoints[e];
-        printf("Endpoint number [%d] with datacenter latency [%dms]\n", 
-            endpoint.idE,
-            endpoint.dc_latency
-        );
 
-        /// Information about their connections
-        for (int k = 0; k<endpoint.K; k<k++) {
-            printf("|. Connected to Cache [%d] with latency [%dms]\n", 
-                endpoint.endpoint_connections[k].idC, 
-                endpoint.endpoint_connections[k].cache_latency
-            );
-        }
-        std::cout << std::endl;
-    }
 
-    // Information on the requests
-    std::cout << "\n---[Requests Data]---" << std::endl;
-    for (int r = 0; r<instance->ip.R; r++) {
-        printf("The video [%d] is requested from endpoint [%d] [%d] times\n", 
-            instance->requests[r].idV,
-            instance->requests[r].idE,
-            instance->requests[r].count
-        );
-    }
-
-    // Information on the caches
-    std::cout << "\n---[Caches Data]---" << std::endl;
-    for (int k = 0; k<instance->ip.C; k++) {
-        printf("Cache number [%d]\n", k);
-        for (int v = 0; v<instance->ip.V; v++) {
-            if (instance->cache_affectation[v][k]) {
-                printf("|. Possess video [%d] of size [%dMo]\n", v, instance->video_sizes[v].vsize);
-            }
-        }
-    }
-
-}
 
 
