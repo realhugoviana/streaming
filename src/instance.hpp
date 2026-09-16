@@ -41,12 +41,18 @@ struct Request {
     int count; // Count the number of requests
 };
 
+struct Cache {
+    int idC; // Id of the cache
+    int used_memory; // Amount of memory used by the current videos  
+};
+
 /// @brief Structure holding all the information about the instance
 struct InstanceData {
     InstanceParameters ip; // Informations on global parameters
-    Video* video_sizes; // Vector containing all the videos
-    Endpoint* endpoints; // Vector containing all the endpoints
-    Request* requests; // Vector containing all the requests
+    Video* video_sizes; // Array containing all the videos
+    Endpoint* endpoints; // Array containing all the endpoints
+    Request* requests; // Array containing all the requests
+    Cache* caches; // Array containing all the caches
     bool** cache_affectation; // Matrix of boolean to describe the affectation of video to cache. Shape: VxC (row: video, col: cache)
 };
 
@@ -57,6 +63,7 @@ struct InstanceData {
 // Initialisation of array, matrices and instances
 template <typename T> T* initialiseArray(int quantity);
 bool** initialiseCacheAffectation(int V, int C);
+Cache* initialiseCacheArray(int C);
 InstanceData initialiseInstance(InstanceParameters ip);
 
 // Parser 

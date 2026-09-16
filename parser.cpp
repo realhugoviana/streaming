@@ -34,6 +34,23 @@ bool** initialiseCacheAffectation(int V, int C) {
     return cache_affectation;
 }
 
+/// @brief Function that 
+/// @param C 
+/// @return 
+Cache* initialiseCacheArray(int C) {
+    // Initialise an array of Cache
+    Cache* caches = initialiseArray<Cache>(C);
+
+    // For each cache, set the id and used memory to 0
+    for (int k = 0; k<C; k++) {
+        caches[k].idC = k;
+        caches[k].used_memory = 0;
+    }
+
+    // Return the array of caches
+    return caches;
+}
+
 /// @brief Function to initialise the instance structure.
 /// @param ip The structure containing the instance parameters.
 /// @return The initialised instance
@@ -47,6 +64,7 @@ InstanceData initialiseInstance(InstanceParameters ip) {
     instance.requests = initialiseArray<Request>(ip.R);
     instance.endpoints = initialiseArray<Endpoint>(ip.E);
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
+    instance.caches = initialiseCacheArray(ip.C);
 
     // Return the empty instance
     return instance;
@@ -58,13 +76,9 @@ InstanceData initialiseInstance(InstanceParameters ip) {
 InstanceData videoParser(InstanceData instance) {
     // For each video
     for (int v = 0; v<instance.ip.V; v++) {
-        // Create the video, store the id
-        Video video;
-        video.idV = v;
-
-        // Get the video size, register it
-        std::cin >> video.vsize;
-        instance.video_sizes[v] = video;
+        // Get the size and store the video with the corresponding id
+        std::cin >> instance.video_sizes[v].vsize;
+        instance.video_sizes[v].idV = v;
     }
 
     // Return the modified instance
@@ -75,16 +89,15 @@ InstanceData videoParser(InstanceData instance) {
 /// @param instance The empty instance
 /// @return Instance with filled array of endpoints
 InstanceData endpointParser(InstanceData instance) {
-    // Declare the latency and number of connected caches
-    int latency_dc, K;
+    // Declare number of connected caches
+    int K;
 
     // For each endpoint
     for (int e = 0; e<instance.ip.E; e++) {
         // Get the latency, the number of connected caches and register them along with the id of the endpoint
-        std::cin >> latency_dc >> K;
-        instance.endpoints[e].dc_latency = latency_dc;
-        instance.endpoints[e].idE = e;
+        std::cin >> instance.endpoints[e].dc_latency >> K;
         instance.endpoints[e].K = K;
+        instance.endpoints[e].idE = e;
         
         // Initialise the array of connections
         EndpointCacheConnection* endpoint_connections = initialiseArray<EndpointCacheConnection>(K);
@@ -106,14 +119,9 @@ InstanceData endpointParser(InstanceData instance) {
 /// @param instance The empty instance
 /// @return Instance with filled array of requests
 InstanceData requestParser(InstanceData instance) {
-    // Declare id of video, endpoint and required quantity
-    int idV, idE, count;
-
-    // For each request, get the information and attach it to the instance
+    // For each request, get the information and store it into the instance
     for (int r = 0; r<instance.ip.R; r++) {
-        Request demand;
-        std::cin >> demand.idV >> demand.idE >> demand.count;
-        instance.requests[r] = demand;
+        std::cin >> instance.requests[r].idV >> instance.requests[r].idE >> instance.requests[r].count;
     }
 
     // Return the modified instance
@@ -139,7 +147,6 @@ InstanceData parser() {
     return instance;
 }
      
-
 /// @brief Method to show the parameters of the instance
 /// @param instance 
 void showInstance(InstanceData* instance) {
@@ -205,6 +212,7 @@ void showInstance(InstanceData* instance) {
 /*
     MAIN
 */
+
 /// @brief Parser of the HashCode Challenge in C++ : reads an instance and dumps it
 /// @return GlobalData gd, std::vector<Video> video_sizes, std::vector<Endpoint> endpoints and std::vector<Request> requests
 int main(int argc, char* argv[]) {
