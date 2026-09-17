@@ -81,7 +81,7 @@ InstanceData parser();
 // Instance viewer and out
 void showInstance(InstanceData* instance);
 //void instanceOut(InstanceData* instance);
-//int computeTotalGain(InstanceData* instance)
+int computeTotalGain(InstanceData* instance);
 
 
 
