@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 
 
 /*
@@ -32,24 +33,28 @@ struct Endpoint {
 struct Video {
     int idV; // Identifier of the video
     int vsize; // Size of the video in Mo
+    std::vector<int> associated_requests; // Id of the associated requests
 };
 
 /// @brief Definition of a Request by the id between the video and then endpoint as well as the requested quantity 
 struct Request {
+    int idR; // Identifier of the request 
     int idV; // Identifier of the requested video
     int idE; // Identifier of the endpoint
     int count; // Count the number of requests
+    int gain; // Latency gain
 };
 
+/// @brief Definition of a Cache by its id and its used memory
 struct Cache {
     int idC; // Id of the cache
-    int used_memory; // Amount of memory used by the current videos  
+    int left_memory; // Amount of memory left to store additional videos  
 };
 
 /// @brief Structure holding all the information about the instance
 struct InstanceData {
     InstanceParameters ip; // Informations on global parameters
-    Video* video_sizes; // Array containing all the videos
+    Video* videos; // Array containing all the videos
     Endpoint* endpoints; // Array containing all the endpoints
     Request* requests; // Array containing all the requests
     Cache* caches; // Array containing all the caches
@@ -63,17 +68,20 @@ struct InstanceData {
 // Initialisation of array, matrices and instances
 template <typename T> T* initialiseArray(int quantity);
 bool** initialiseCacheAffectation(int V, int C);
-Cache* initialiseCacheArray(int C);
+Cache* initialiseCacheArray(int C, int X);
+Request* initialiseRequestArray(int R);
 InstanceData initialiseInstance(InstanceParameters ip);
 
 // Parser 
-InstanceData videoParser(InstanceData instance);
-InstanceData endpointParser(InstanceData instance);
-InstanceData requestParser(InstanceData instance);
+void videoParser(InstanceData& instance);
+void endpointParser(InstanceData& instance);
+void requestParser(InstanceData& instance);
 InstanceData parser();
 
-// Instance viewer
+// Instance viewer and out
 void showInstance(InstanceData* instance);
+//void instanceOut(InstanceData* instance);
+//int computeTotalGain(InstanceData* instance)
 
 
 

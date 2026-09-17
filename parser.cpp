@@ -1,4 +1,5 @@
 #include "src/instance.hpp"
+#include <vector>
 
 /*
     PARSER RELATED FUNCTIONS
@@ -9,8 +10,8 @@
 /// @param quantity The size of the array
 /// @return An array of size `quantity` and of type `T`
 template <typename T> T* initialiseArray(int quantity) {
-    T* arr = (T*)malloc(quantity*sizeof(T));
-    return arr;
+    // Does not use malloc, otherwise, may cause problems with structures containing vector (subobject not being constructed)
+    return new T[quantity];
 }
 
 /// @brief Function that, given number of video and cache, create the boolean association matrix between those 
@@ -34,22 +35,39 @@ bool** initialiseCacheAffectation(int V, int C) {
     return cache_affectation;
 }
 
-/// @brief Function that 
-/// @param C 
-/// @return 
-Cache* initialiseCacheArray(int C) {
+/// @brief Function that initialise an array of cache of size `C` with left memory set to `X`.
+/// @param C Number of cache
+/// @return The array of cache
+Cache* initialiseCacheArray(int C, int X) {
     // Initialise an array of Cache
     Cache* caches = initialiseArray<Cache>(C);
 
-    // For each cache, set the id and used memory to 0
+    // For each cache, set the id and used memory to X
     for (int k = 0; k<C; k++) {
         caches[k].idC = k;
-        caches[k].used_memory = 0;
+        caches[k].left_memory = X;
     }
 
     // Return the array of caches
     return caches;
 }
+
+/// @brief Function that initialise an array of request of size `R` with gain set to 0.
+/// @param R Number of requests.
+/// @return The array of requests.
+Request* initialiseRequestArray(int R) {
+    // Initialise an array of requests
+    Request* requests = initialiseArray<Request>(R);
+
+    // For each request, set the id and gain to 0
+    for (int r = 0; r<R; r++) {
+        requests[r].idR = r;
+        requests[r].gain = 0;
+    }
+
+    // Return the array of requests
+    return requests;
+} 
 
 /// @brief Function to initialise the instance structure.
 /// @param ip The structure containing the instance parameters.
@@ -60,11 +78,11 @@ InstanceData initialiseInstance(InstanceParameters ip) {
 
     // Fill the instance
     instance.ip = ip;
-    instance.video_sizes = initialiseArray<Video>(ip.V);
-    instance.requests = initialiseArray<Request>(ip.R);
+    instance.videos = initialiseArray<Video>(ip.V);
+    instance.requests = initialiseRequestArray(ip.R);
     instance.endpoints = initialiseArray<Endpoint>(ip.E);
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
-    instance.caches = initialiseCacheArray(ip.C);
+    instance.caches = initialiseCacheArray(ip.C, ip.X);
 
     // Return the empty instance
     return instance;
@@ -73,22 +91,22 @@ InstanceData initialiseInstance(InstanceParameters ip) {
 /// @brief Subfunction of `parser` used to parse the videos
 /// @param instance The empty instance
 /// @return Instance with  filled array of videos
-InstanceData videoParser(InstanceData instance) {
+void videoParser(InstanceData& instance) {
     // For each video
     for (int v = 0; v<instance.ip.V; v++) {
         // Get the size and store the video with the corresponding id
-        std::cin >> instance.video_sizes[v].vsize;
-        instance.video_sizes[v].idV = v;
-    }
+        std::cin >> instance.videos[v].vsize;
+        instance.videos[v].idV = v;
 
-    // Return the modified instance
-    return instance;
+        // Clear associated requests by safety
+        instance.videos[v].associated_requests.clear();
+    }
 }
 
 /// @brief Subfunction of `parser` used to parse the endpoints
 /// @param instance The empty instance
 /// @return Instance with filled array of endpoints
-InstanceData endpointParser(InstanceData instance) {
+void endpointParser(InstanceData& instance) {
     // Declare number of connected caches
     int K;
 
@@ -110,22 +128,17 @@ InstanceData endpointParser(InstanceData instance) {
         // Attach the endpoints connections
         instance.endpoints[e].endpoint_connections = endpoint_connections;
     }
-
-    // Return the modified instance
-    return instance;
 }
 
 /// @brief Subfunction of `parser` used to parse the requests
 /// @param instance The empty instance
 /// @return Instance with filled array of requests
-InstanceData requestParser(InstanceData instance) {
-    // For each request, get the information and store it into the instance
+void requestParser(InstanceData& instance) {
+    // For each request, get the information and store it into the instance. Push the request to the associated video
     for (int r = 0; r<instance.ip.R; r++) {
         std::cin >> instance.requests[r].idV >> instance.requests[r].idE >> instance.requests[r].count;
+        instance.videos[instance.requests[r].idV].associated_requests.push_back(instance.requests[r].idR);
     }
-
-    // Return the modified instance
-    return instance;
 }
 
 /// @brief Function for the raw parser
@@ -139,9 +152,9 @@ InstanceData parser() {
     InstanceData instance = initialiseInstance(ip);
 
     // Fill the instance
-    instance = videoParser(instance);
-    instance = endpointParser(instance);
-    instance = requestParser(instance);
+    videoParser(instance);
+    endpointParser(instance);
+    requestParser(instance);
     
     // Return the instance
     return instance;
@@ -163,9 +176,18 @@ void showInstance(InstanceData* instance) {
     std::cout << "---[Videos Data]---" << std::endl;
     for (int v = 0; v<instance->ip.V; v++) {
         printf("Video number [%d] of size [%dMo]\n", 
-            instance->video_sizes[v].idV,
-            instance->video_sizes[v].vsize
+            instance->videos[v].idV,
+            instance->videos[v].vsize
         );
+        // Information on related requests
+        if (instance->videos[v].associated_requests.size()>0) {
+            std::cout << "|. Associated requests: {";
+            for (auto& r : instance->videos[v].associated_requests) {
+                printf(" %d ", r);
+            }
+            std::cout << "}" << std::endl;
+        }
+        std::cout << std::endl;
     }
     std::cout << std::endl;
 
@@ -190,10 +212,12 @@ void showInstance(InstanceData* instance) {
     // Information on the requests
     std::cout << "\n---[Requests Data]---" << std::endl;
     for (int r = 0; r<instance->ip.R; r++) {
-        printf("The video [%d] is requested from endpoint [%d] [%d] times\n", 
+        printf("[requests no. %d] The video [%d] is requested from endpoint [%d] [%d] times. [Unitary Gain: %d]\n",
+            instance->requests[r].idR,
             instance->requests[r].idV,
             instance->requests[r].idE,
-            instance->requests[r].count
+            instance->requests[r].count,
+            instance->requests[r].gain
         );
     }
 
@@ -203,11 +227,65 @@ void showInstance(InstanceData* instance) {
         printf("Cache number [%d]\n", k);
         for (int v = 0; v<instance->ip.V; v++) {
             if (instance->cache_affectation[v][k]) {
-                printf("|. Possess video [%d] of size [%dMo]\n", v, instance->video_sizes[v].vsize);
+                printf("|. Possess video [%d] of size [%dMo]\n", v, instance->videos[v].vsize);
             }
         }
     }
 }
+
+/// @brief Function to compute the total gain accros the requests 
+/// @param instance 
+/// @return The weighted sum of gain*count over the requests
+int computeTotalGain(InstanceData* instance) {
+    // Initialise the sum to 0
+    int sum = 0;
+
+    // Perform the weighted sum
+    for (int r = 0; r<instance->ip.R; r++) {
+        sum = sum + instance->requests[r].gain * instance->requests[r].count;
+    }
+
+    // Return the sum
+    return sum;
+}
+
+/// @brief Method to return the solution for an instance
+/// @param instance (NOT WORKING PROPERLY)
+/*
+void instanceOut(InstanceData* instance) {
+    // Vector that will contains the index of each cache being used
+    std::vector<int> usedCache;
+    
+    // For each cache, if a video is associated; store the id of the cache and continue
+    for (int k = 0; k<instance->ip.C; k++) {
+        for (int v = 0; v<instance->ip.V; v++) {
+            if (instance->cache_affectation[k][v]) {
+                usedCache.push_back(k);
+                break;
+            }
+        }
+    }
+
+    // Print the number of cache being used
+    std::cout << usedCache.size() << std::endl;
+
+    // For each cache being used
+    for (auto& k : usedCache) {
+        // Print the ide of the cache
+        std::cout << k;
+
+        // Loop through all the association and print the video if it has an association
+        for (int v = 0; v<instance->ip.V; v++) {
+            if (instance->cache_affectation[k][v]) {
+                std::cout << " " << v;
+            }
+        }
+
+        // Go to next cache
+        std::cout << std::endl;
+    }
+}
+*/
 
 /*
     MAIN
@@ -224,5 +302,7 @@ int main(int argc, char* argv[]) {
     // By design, unconnect cache are not in the model
     InstanceData instance = parser();
     showInstance(&instance);
+    std::cout << computeTotalGain(&instance) << std::endl;
+    //instanceOut(&instance);
     return 0;
 }
