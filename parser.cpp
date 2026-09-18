@@ -1,5 +1,6 @@
 #include "src/instance.hpp"
 #include <vector>
+#include <unordered_map>
 
 /*
     PARSER RELATED FUNCTIONS
@@ -249,43 +250,52 @@ int computeTotalGain(InstanceData* instance) {
     return sum;
 }
 
-/// @brief Method to return the solution for an instance
+/// @brief Method to show tha video/cache association matrix
 /// @param instance (NOT WORKING PROPERLY)
-/*
-void instanceOut(InstanceData* instance) {
-    // Vector that will contains the index of each cache being used
-    std::vector<int> usedCache;
-    
-    // For each cache, if a video is associated; store the id of the cache and continue
-    for (int k = 0; k<instance->ip.C; k++) {
-        for (int v = 0; v<instance->ip.V; v++) {
-            if (instance->cache_affectation[k][v]) {
-                usedCache.push_back(k);
-                break;
-            }
+void showVideoCacheAssociations(InstanceData* instance) {
+    // For each video
+    for (int v = 0; v<instance->ip.V; v++) {
+        // For each caches
+        for (int k = 0; k<instance->ip.C; k++) {
+            // Print the association
+            std::cout << (instance->cache_affectation[v][k] ? 1 : 0) << " ";
         }
-    }
-
-    // Print the number of cache being used
-    std::cout << usedCache.size() << std::endl;
-
-    // For each cache being used
-    for (auto& k : usedCache) {
-        // Print the ide of the cache
-        std::cout << k;
-
-        // Loop through all the association and print the video if it has an association
-        for (int v = 0; v<instance->ip.V; v++) {
-            if (instance->cache_affectation[k][v]) {
-                std::cout << " " << v;
-            }
-        }
-
-        // Go to next cache
         std::cout << std::endl;
     }
 }
-*/
+
+/// @brief Function to print the result of the instance in the HashCode Required format
+/// @param instance 
+void instanceOut(InstanceData* instance) {
+    // Initialise a hasmap that will store all the connected video for a cache (to avoid traversing the matrix two times to count and to show the results)
+    std::unordered_map<int,std::vector<int>> usedCaches;
+
+    // For each cache and video
+    for (int k = 0; k <instance->ip.C; k++) {
+        for (int v = 0; v<instance->ip.V; v++) {
+            // Check if the association exists. If it does exists, then push the video to the corresponding cache
+            if (instance->cache_affectation[v][k]) {
+                usedCaches[k].push_back(v);
+            }
+        };
+    }
+
+    // Print the number of used caches
+    std::cout << usedCaches.size() << std::endl;
+
+    // For each cache being used
+    for (auto& k : usedCaches) {
+        // Print the id of the cache 
+        std::cout << k.first;
+
+        // Print the list of video, then continue
+        for (auto& v : k.second) {
+            std::cout << " " << v;
+        }
+        std::cout << std::endl;
+    }
+}
+
 
 /*
     MAIN
@@ -303,6 +313,8 @@ int main(int argc, char* argv[]) {
     InstanceData instance = parser();
     showInstance(&instance);
     std::cout << computeTotalGain(&instance) << std::endl;
+    showVideoCacheAssociations(&instance);
+    instanceOut(&instance);
     //instanceOut(&instance);
     return 0;
 }

@@ -80,7 +80,8 @@ InstanceData parser();
 
 // Instance viewer and out
 void showInstance(InstanceData* instance);
-//void instanceOut(InstanceData* instance);
+void showVideoCacheAssociations(InstanceData* instance);
+void instanceOut(InstanceData* instance);
 int computeTotalGain(InstanceData* instance);
 
 
