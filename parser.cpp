@@ -84,6 +84,7 @@ InstanceData initialiseInstance(InstanceParameters ip) {
     instance.endpoints = initialiseArray<Endpoint>(ip.E);
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
     instance.caches = initialiseCacheArray(ip.C, ip.X);
+    instance.score = 0;
 
     // Return the empty instance
     return instance;
@@ -232,6 +233,11 @@ void showInstance(InstanceData* instance) {
             }
         }
     }
+
+    // Display the calculated score
+    std::cout << "\n---[Total Score]---" << std::endl;
+    printf("Total Score: %d\n", instance->score);
+
 }
 
 /// @brief Function to compute the total gain accros the requests 
@@ -312,9 +318,7 @@ int main(int argc, char* argv[]) {
     // By design, unconnect cache are not in the model
     InstanceData instance = parser();
     showInstance(&instance);
-    std::cout << computeTotalGain(&instance) << std::endl;
     showVideoCacheAssociations(&instance);
     instanceOut(&instance);
-    //instanceOut(&instance);
     return 0;
 }
