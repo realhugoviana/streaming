@@ -61,7 +61,7 @@ struct InstanceData {
     Request* requests; // Array containing all the requests
     Cache* caches; // Array containing all the caches
     bool** cache_affectation; // Matrix of boolean to describe the affectation of video to cache. Shape: VxC (row: video, col: cache)
-    int score; // Bah le score quoi
+    long long score; // Weighted score: sum over requests of gain * count
 };
 
 /*
@@ -85,6 +85,7 @@ InstanceData parser();
 void showInstance(InstanceData* instance);
 void showVideoCacheAssociations(InstanceData* instance);
 void instanceOut(InstanceData* instance);
-int computeTotalGain(InstanceData* instance);
+long long computeTotalGain(InstanceData* instance);
+long long computeContestScore(InstanceData* instance);
 
 #endif
