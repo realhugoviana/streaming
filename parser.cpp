@@ -84,6 +84,7 @@ InstanceData initialiseInstance(InstanceParameters ip) {
     instance.endpoints = initialiseArray<Endpoint>(ip.E);
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
     instance.caches = initialiseCacheArray(ip.C, ip.X);
+    instance.sum_request_count = 0;
 
     // Return the empty instance
     return instance;
@@ -139,6 +140,9 @@ void requestParser(InstanceData& instance) {
     for (int r = 0; r<instance.ip.R; r++) {
         std::cin >> instance.requests[r].idV >> instance.requests[r].idE >> instance.requests[r].count;
         instance.videos[instance.requests[r].idV].associated_requests.push_back(instance.requests[r].idR);
+        
+        // Add to sum_count
+        instance.sum_request_count = instance.sum_request_count + instance.requests[r].count;
     }
 }
 
@@ -212,6 +216,7 @@ void showInstance(InstanceData* instance) {
 
     // Information on the requests
     std::cout << "\n---[Requests Data]---" << std::endl;
+    printf("Total requested quantity [%d]\n", instance->sum_request_count);
     for (int r = 0; r<instance->ip.R; r++) {
         printf("[requests no. %d] The video [%d] is requested from endpoint [%d] [%d] times. [Unitary Gain: %d]\n",
             instance->requests[r].idR,
