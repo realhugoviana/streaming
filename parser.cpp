@@ -256,6 +256,7 @@ void showInstance(InstanceData* instance) {
     // Information on the requests
     std::cout << "\n---[Requests Data]---" << std::endl;
     printf("Total requested quantity [%d]\n", instance->sum_request_count);
+    printf("Total requested quantity [%d]\n", instance->sum_request_count);
     for (int r = 0; r<instance->ip.R; r++) {
         printf("[requests no. %d] The video [%d] is requested from endpoint [%d] [%d] times. [Unitary Gain: %d]\n",
             instance->requests[r].idR,
