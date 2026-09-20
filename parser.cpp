@@ -1,4 +1,5 @@
 #include "src/instance.hpp"
+#include "src/solvers/local_search.cpp"
 #include <vector>
 #include <unordered_map>
 
@@ -320,5 +321,9 @@ int main(int argc, char* argv[]) {
     showInstance(&instance);
     showVideoCacheAssociations(&instance);
     instanceOut(&instance);
+    local_search(&instance, 1000);
+    showInstance(&instance);
+    // showVideoCacheAssociations(&instance);
+    // instanceOut(&instance);
     return 0;
 }

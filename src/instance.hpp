@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 
+#ifndef INSTANCE_HPP
+#define INSTANCE_HPP
 
 /*
     STRUCTURES
@@ -85,13 +87,4 @@ void showVideoCacheAssociations(InstanceData* instance);
 void instanceOut(InstanceData* instance);
 int computeTotalGain(InstanceData* instance);
 
-
-
-
-
-
-
-
-
-
-
+#endif
