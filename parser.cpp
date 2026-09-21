@@ -86,7 +86,7 @@ InstanceData initialiseInstance(InstanceParameters ip) {
     instance.endpoints = initialiseArray<Endpoint>(ip.E);
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
     instance.caches = initialiseCacheArray(ip.C, ip.X);
-    instance.sum_request_count = 0;
+    instance.sum_request_count = 0l;
     instance.score = 0;
 
     // Return the empty instance
