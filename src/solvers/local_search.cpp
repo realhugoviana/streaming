@@ -184,3 +184,52 @@ long long local_search(InstanceData* instance, int num_iterations) {
 
     return score;
 }
+
+/// @brief Performs num_moves random local moves to ruin the current solution
+/// @param instance
+/// @param num_moves
+/// @return score of the ruined solution
+long long ruin(InstanceData* instance, int num_moves) {
+    // Use C++ standard library for randomization
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    for (int i = 0; i < num_moves; ++i) {
+        // 1. Select a random video to modify
+        std::uniform_int_distribution<> dist_video(0, instance->ip.V - 1);
+        int id_video = dist_video(gen);
+
+        // 2. Randomly decide between Add/Remove (0) and Swap (1)
+        std::uniform_int_distribution<> dist_move_type(0, 1);
+        int move_type = dist_move_type(gen);
+
+        if (move_type == 0) { // Add/Remove
+            // Randomly select a cache to modify the video in.
+            std::uniform_int_distribution<> dist_cache(0, instance->ip.C - 1);
+            int id_cache = dist_cache(gen);
+
+            // Apply the change permanently (ruining it)
+            add_remove(instance, id_cache, id_video);
+        } else { // Swap
+            // Randomly select two distinct caches for swapping.
+            std::uniform_int_distribution<> dist_cache_1(0, instance->ip.C - 1);
+            int id_cache1 = dist_cache_1(gen);
+
+            int id_cache2;
+            do {
+                id_cache2 = dist_cache_1(gen);
+            } while (id_cache2 == id_cache1);
+
+            // Apply the swap permanently (ruining it)
+            swap(instance, id_cache1, id_video, id_cache2);
+        }
+    }
+    return instance->score;
+}
+
+/// @brief Performs num_rr_iterations of num_moves ruin followed by at most num_ls_iterations of local search to recreate a good solution
+/// @param instance
+/// @param num_rr_iterations
+/// @param num_moves
+/// @param num_ls_iterations
+/// @return best score 
