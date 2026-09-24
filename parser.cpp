@@ -139,13 +139,49 @@ void endpointParser(InstanceData& instance) {
 /// @param instance The empty instance
 /// @return Instance with filled array of requests
 void requestParser(InstanceData& instance) {
-    // For each request, get the information and store it into the instance. Push the request to the associated video
+    // Hashmap to merge requests having same video and endpoints if necessary
+    std::unordered_map<int, std::unordered_map<int, int>> requestMap;
+    int video_id, endpoint_id, count, Rprime;
+
+    // For each request, get the video, the endpoint and the count
     for (int r = 0; r<instance.ip.R; r++) {
-        std::cin >> instance.requests[r].idV >> instance.requests[r].idE >> instance.requests[r].count;
-        instance.videos[instance.requests[r].idV].associated_requests.push_back(instance.requests[r].idR);
+        std::cin >> video_id >> endpoint_id >> count;
+
+        // If it is already in the requestMap, accumulate the count
+        if (requestMap[endpoint_id].find(video_id) != requestMap[endpoint_id].end()) {
+            requestMap[endpoint_id][video_id] = requestMap[endpoint_id][video_id] + count;
+        
+        // Otherwise, initialise the count and increase the number of valid requests
+        } else {
+            requestMap[endpoint_id][video_id] = count;
+            Rprime++;
+        }
         
         // Add to sum_count
-        instance.sum_request_count = instance.sum_request_count + instance.requests[r].count;
+        instance.sum_request_count = instance.sum_request_count + count;
+    }
+
+    // Update in the instance the real number of requests and reinitialise the array of requests
+    instance.ip.R = Rprime;
+    instance.requests = initialiseRequestArray(Rprime);
+
+    // For each request in the map
+    int idR = 0;
+    for (auto& r : requestMap) {
+        // Retrieve the endpoint
+        int endpoint = r.first;
+
+        // For each video in the endpoint, register the corrsponding request
+        for (auto& v : r.second) {
+            instance.requests[idR].count = v.second;
+            instance.requests[idR].idE = endpoint;
+            instance.requests[idR].idR = idR;
+            instance.requests[idR].idV = v.first;
+
+            // Register for the corresponding video the associated requests, then go to next request
+            instance.videos[v.first].associated_requests.push_back(idR);
+            idR++;
+        }
     }
 }
 
@@ -341,11 +377,12 @@ int main(int argc, char* argv[]) {
     //    return 1;
     //}
     InstanceData instance = parser();
-    greedy_density(&instance);
-    local_search(&instance, 1000);
-    std::cerr << "score: " << instance.score << std::endl;
-    std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
+    showInstance(&instance);
+    //greedy_density(&instance);
+    //local_search(&instance, 1000);
+    //std::cerr << "score: " << instance.score << std::endl;
+    //std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
 
-    instanceOut(&instance);
+    //instanceOut(&instance);
     return 0;
 }
