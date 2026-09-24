@@ -1,4 +1,6 @@
 #include "src/instance.hpp"
+#include "src/solvers/local_search.cpp"
+#include "src/solvers/greedy_density.cpp"
 #include <vector>
 #include <unordered_map>
 
@@ -85,6 +87,7 @@ InstanceData initialiseInstance(InstanceParameters ip) {
     instance.cache_affectation = initialiseCacheAffectation(ip.V, ip.C);
     instance.caches = initialiseCacheArray(ip.C, ip.X);
     instance.sum_request_count = 0l;
+    instance.score = 0;
 
     // Return the empty instance
     return instance;
@@ -237,22 +240,46 @@ void showInstance(InstanceData* instance) {
             }
         }
     }
+
+    // Display the calculated score
+    std::cout << "\n---[Total Score]---" << std::endl;
+    printf("Total Score: %lld\n", instance->score);
+
 }
 
 /// @brief Function to compute the total gain accros the requests 
 /// @param instance 
 /// @return The weighted sum of gain*count over the requests
-int computeTotalGain(InstanceData* instance) {
+long long computeTotalGain(InstanceData* instance) {
     // Initialise the sum to 0
-    int sum = 0;
+    long long sum = 0;
 
     // Perform the weighted sum
     for (int r = 0; r<instance->ip.R; r++) {
-        sum = sum + instance->requests[r].gain * instance->requests[r].count;
+        sum = sum + (long long)instance->requests[r].gain * instance->requests[r].count;
     }
 
     // Return the sum
     return sum;
+}
+
+/// @brief Function to compute the official HashCode score: the average latency
+/// saved per request (weighted by how many times each request is made),
+/// expressed in milliseconds and scaled by 1000.
+/// @param instance
+/// @return The contest score, or 0 if the instance has no requests
+long long computeContestScore(InstanceData* instance) {
+    // Total number of individual requests served (sum of counts)
+    long long total_requests = 0;
+    for (int r = 0; r<instance->ip.R; r++) {
+        total_requests += instance->requests[r].count;
+    }
+
+    // No request means no score to compute, avoids a division by zero
+    if (total_requests == 0) return 0;
+
+    // Average gain per request, scaled by 1000
+    return computeTotalGain(instance) * 1000 / total_requests;
 }
 
 /// @brief Method to show tha video/cache association matrix
@@ -313,13 +340,12 @@ int main(int argc, char* argv[]) {
     //    std::cerr << "Usage: " << argv[0] << " <path_to_input_file.in>" << std::endl;
     //    return 1;
     //}
-
-    // By design, unconnect cache are not in the model
     InstanceData instance = parser();
-    showInstance(&instance);
-    std::cout << computeTotalGain(&instance) << std::endl;
-    showVideoCacheAssociations(&instance);
+    greedy_density(&instance);
+    local_search(&instance, 1000);
+    std::cerr << "score: " << instance.score << std::endl;
+    std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
+
     instanceOut(&instance);
-    //instanceOut(&instance);
     return 0;
 }

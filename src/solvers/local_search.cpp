@@ -3,153 +3,184 @@
 #include <random>
 #include <string>
 
-#include "../greedy.hpp"
+#include "../instance.hpp"
 
-/*
-    LOCAL SEARCH — RUIN AND RECREATE
+/// @brief Structure holding a move inside the neighborhood
+struct Local_move {
+    int move; // Swap with another cache if 1, add or remove depending on the current state if 0, no move if -1
+    int id_cache_1; // Cache from which the move is made
+    int id_video; // Video from which the move is made
+    int id_cache_2; // Cache with which the swap is made if the move is swap
+};
 
-    The greedy solver commits to a video early. That video can become redundant
-    when a later placement serves the same requests. This solver repairs that.
 
-    Each iteration empties some caches, then fills them again with the lazy
-    greedy. The rest of the solution stays. Thus the greedy sees a different
-    context and it can make a different choice. The iteration keeps the result
-    only if the total gets better.
-*/
+/// @brief Compute the updated score after a move
+/// @param id_video 
+/// @param instance 
+/// @return updated score
+long long compute_updated_score(int id_video, InstanceData* instance) {
+    long long score_diff = 0;
+    for(const auto& id_request : instance->videos[id_video].associated_requests) {
+        int id_endpoint = instance->requests[id_request].idE;
+        int current_request_gain = instance->requests[id_request].gain;
+        int best_gain = 0;
+        int num_caches = instance->endpoints[id_endpoint].K;
 
-/// @brief The candidate videos of each cache, in a compressed row layout
-struct ByCache { std::vector<int> off, vid; };
+        for (int i = 0; i < num_caches; i++) {
+            int id_c = instance->endpoints[id_endpoint].endpoint_connections[i].idC;
+            int dc_latency = instance->endpoints[id_endpoint].dc_latency;
+            int cache_latency = instance->endpoints[id_endpoint].endpoint_connections[i].cache_latency;
 
-/// @brief Group the pairs by cache. This gives the recreate step its candidates.
-ByCache groupByCache(const std::vector<Cand>& cand, int C) {
-    ByCache b;
-    b.off.assign(C + 1, 0);
-    for (const Cand& p : cand) b.off[p.c + 1]++;
-    for (int c = 0; c < C; c++) b.off[c + 1] += b.off[c];
+            int gain = dc_latency - cache_latency;
 
-    std::vector<int> at = b.off;
-    b.vid.resize(cand.size());
-    for (const Cand& p : cand) b.vid[at[p.c]++] = p.v;
-    return b;
-}
-
-/// @brief Build the pairs that can fill the free space of the ruined caches
-/// @note  The step computes a gain for every candidate video. A shorter list is
-///        not possible. Section 6.2 of the document gives the measurements.
-std::vector<Cand> refill(const Index& x, const State& st, const ByCache& b,
-                         const std::vector<int>& ruined, bool density,
-                         const std::vector<double>& noise) {
-    std::vector<Cand> out;
-    for (int c : ruined)
-        for (int i = b.off[c]; i < b.off[c + 1]; i++) {
-            int v = b.vid[i];
-            if (x.size[v] > st.residual[c]) continue;
-            long long g = gain(x, st, v, c);
-            if (g > 0) out.push_back({keyOf(g, x.size[v], density) * noise[v], v, c});
-        }
-    return out;
-}
-
-/*
-    MAIN
-*/
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <path_to_input_file.in> [-o out.txt] [-t seconds] [-r caches] [-p prob] [-a noise] [-e accept] [-c cap] [-s seed] [-k gain|density]" << std::endl;
-        return 1;
-    }
-
-    std::string input_path = argv[1], output_path, key = "density";
-    double seconds = 10.0, prob = 1.0, amp = 0.0, eps = 0.0;
-    int ruin_count = 0;
-    unsigned int seed = 42;
-    try {
-    for (int i = 2; i < argc; i += 2) {
-        if (i + 1 >= argc) { std::cerr << "Option '" << argv[i] << "' needs a value" << std::endl; return 1; }
-        if (std::strcmp(argv[i], "-o") == 0) output_path = argv[i + 1];
-        else if (std::strcmp(argv[i], "-t") == 0) seconds = std::stod(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-r") == 0) ruin_count = std::stoi(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-p") == 0) prob = std::stod(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-a") == 0) amp = std::stod(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-e") == 0) eps = std::stod(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-s") == 0) seed = (unsigned int)std::stoul(argv[i + 1]);
-        else if (std::strcmp(argv[i], "-k") == 0) key = argv[i + 1];
-        else { std::cerr << "Unknown option '" << argv[i] << "'" << std::endl; return 1; }
-    }
-    } catch (const std::exception&) { std::cerr << "An option has a value that is not a number" << std::endl; return 1; }
-    bool density = (key == "density");
-
-    InstanceData raw = parseFile(input_path);
-    InstanceData in = reduce(raw);
-
-    Index x = buildIndex(in);
-    State st = makeState(x);
-
-    // Start from the phase 2 solution
-    std::vector<Cand> cand = candidates(x, in, st, density);
-    ByCache b = groupByCache(cand, x.C);
-    greedyLazy(x, st, std::move(cand), density);
-
-    // The score divides by the request count of the raw instance
-    long long weight = 0;
-    for (const Request& r : raw.requests) weight += r.count;
-
-    long long best = st.total;
-    Solution best_sol = st.sol;
-    std::cout << "[local] greedy start: " << (weight ? best * 1000 / weight : 0) << std::endl;
-
-    // Ruin 5 % of the caches by default, and never less than one cache
-    if (ruin_count <= 0) ruin_count = std::max(1, x.C / 20);
-
-    std::mt19937 rng(seed);
-    std::uniform_int_distribution<int> pick(0, x.C - 1);
-    std::uniform_real_distribution<double> coin(0.0, 1.0);
-
-    auto start = std::chrono::steady_clock::now();
-    long long iters = 0, improves = 0;
-    std::vector<std::pair<int,int>> removed, added;
-    std::vector<int> ruined;
-    std::vector<double> noise(x.V, 1.0);
-
-    double elapsed = 0.0;
-    while (elapsed < seconds) {
-        elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-        iters++;
-        long long before = st.total;
-
-        // The limit goes down to zero at the end of the budget. The search thus
-        // explores at the start and only climbs at the end.
-        long long slack = (long long)(eps * (double)best * (1.0 - elapsed / seconds));
-        removed.clear(); added.clear(); ruined.clear();
-
-        // Ruin: take some caches and remove a part of their videos
-        for (int i = 0; i < ruin_count && (int)ruined.size() < x.C; i++) {
-            int c = pick(rng);
-            while (std::find(ruined.begin(), ruined.end(), c) != ruined.end()) c = pick(rng);
-            ruined.push_back(c);
-            std::vector<int> here = st.sol[c];
-            for (int v : here) if (coin(rng) < prob) { unplace(x, st, v, c); removed.push_back({v, c}); }
+            if (instance->cache_affectation[id_video][id_c] && gain > best_gain) {
+                best_gain = gain;
+            }
         }
 
-        // Recreate: the lazy greedy fills the free space again. The noise makes
-        // the same ruin give a different fill, thus the search does not stop.
-        for (double& n : noise) n = std::max(0.01, 1.0 + amp * (coin(rng) * 2.0 - 1.0));
-        greedyLazy(x, st, refill(x, st, b, ruined, density, noise), density, &added, &noise);
+        instance->requests[id_request].gain = best_gain;
 
-        // Keep the best solution apart, but only when the search can go down.
-        // With no slack the current solution is always the best one.
-        if (st.total > best) { best = st.total; if (eps > 0) best_sol = st.sol; improves++; }
-
-        // Accept a result that is not worse than the limit. If not, undo.
-        if (st.total >= before - slack) continue;
-        for (auto it = added.rbegin(); it != added.rend(); ++it) unplace(x, st, it->first, it->second);
-        for (auto it = removed.rbegin(); it != removed.rend(); ++it) place(x, st, it->first, it->second);
+        score_diff += (long long)(best_gain - current_request_gain) * instance->requests[id_request].count;
     }
 
-    // Guard: the running total must equal a full recomputation
-    if (st.total != totalSaved(x, st)) std::cerr << "[local] WARNING: the running total drifted" << std::endl;
+    instance->score += score_diff;
 
-    std::cout << "[local] iterations: " << iters << ", improvements: " << improves
-              << ", ruin: " << ruin_count << " caches, prob: " << prob << ", noise: " << amp << ", accept: " << eps << std::endl;
-    return report("local", raw, eps > 0 ? best_sol : st.sol, output_path) < 0 ? 1 : 0;
+    return instance->score;
+}
+
+/// @brief Function that adds or remove the given video in the given cache depending on whether the video is already in the cache
+/// @param instance
+/// @param id of the cache
+/// @param id of the video
+/// @return updated score of the new solution or -1 if the assignment was impossible
+long long add_remove(InstanceData* instance, int id_cache, int id_video) {
+    bool currently_placed = instance->cache_affectation[id_video][id_cache];
+    int video_size = instance->videos[id_video].vsize;
+
+    // Check if there is the move is possible
+    if (!currently_placed) {
+        int remaining_space = instance->caches[id_cache].left_memory;
+
+        if (remaining_space < video_size) return -1;
+    }
+
+    // Add the video if it wasn't already there, remove it if it was
+    instance->cache_affectation[id_video][id_cache] = !currently_placed;
+
+    // Keep the cache's remaining space in sync with the toggle
+    instance->caches[id_cache].left_memory += currently_placed ? video_size : -video_size;
+
+    // Recompute the score
+    long long updated_score = compute_updated_score(id_video, instance);
+
+    return updated_score;
+}
+
+/// @brief Function that computes the score of an add or remove without affecting the instance
+/// @param instance 
+/// @param id_cache 
+/// @param id_video 
+/// @return score of the add or remove
+long long try_add_remove(InstanceData* instance, int id_cache, int id_video) {
+    long long score = add_remove(instance, id_cache, id_video);
+
+    add_remove(instance, id_cache, id_video);
+
+    return score;
+}
+
+/// @brief Function that swaps a given video from a given cache to another given cache
+/// @param instance
+/// @param id of the cache 1
+/// @param id of the video
+/// @param id of the cache 2
+/// @return updated score of the new solution or -1 if the assignment was impossible
+long long swap(InstanceData* instance, int id_cache1, int id_video, int id_cache2) {
+    if (instance->cache_affectation[id_video][id_cache1] == instance->cache_affectation[id_video][id_cache2] || instance->cache_affectation[id_video][id_cache1] == 0) return -1;
+
+    add_remove(instance, id_cache1, id_video);
+
+    long long score_second_change = add_remove(instance, id_cache2, id_video);
+
+    // id_cache2 didn't have room: put the video back on id_cache1 so a failed
+    // swap has no side effect, same as a failed add_remove
+    if (score_second_change == -1) {
+        add_remove(instance, id_cache1, id_video);
+        return -1;
+    }
+
+    return score_second_change;
+}
+
+/// @brief Function that computes the score of a swap without affecting the instance
+/// @param instance 
+/// @param id_cache1 
+/// @param id_video 
+/// @param id_cache2 
+/// @return score of the swap
+long long try_swap(InstanceData* instance, int id_cache1, int id_video, int id_cache2) {
+    long long score = swap(instance, id_cache1, id_video, id_cache2);
+
+    if(score == -1) return -1;
+
+    swap(instance, id_cache2, id_video, id_cache1);
+
+    return score;
+}
+
+/// @brief performs one interation of local search
+/// @param instance
+/// @return score of best move
+long long local_search_single_iteration(InstanceData* instance) {
+    long long best_score = instance->score;
+    Local_move best_move = {-1, -1, -1, -1}; // Initialize with invalid move identifiers
+
+    for(int id_video = 0; id_video < instance->ip.V; id_video++) {
+        for(int id_cache = 0; id_cache < instance->ip.C; id_cache++) {
+            long long score_add_remove = try_add_remove(instance, id_cache, id_video);
+
+            if (score_add_remove > best_score) {
+                best_score = score_add_remove;
+                best_move = {0, id_cache, id_video, -1};
+            }
+
+            if (id_cache < instance->ip.C-1) {
+                for (int id_cache_swap = id_cache+1; id_cache_swap < instance->ip.C; id_cache_swap++) {
+                    long long score_swap = try_swap(instance, id_cache, id_video, id_cache_swap);
+
+                    if (score_swap > best_score) {
+                        best_score = score_swap;
+                        best_move = {1, id_cache, id_video, id_cache_swap};
+                    }
+                }
+            }
+        }
+    }
+
+    if (best_move.move == 0) {
+        add_remove(instance, best_move.id_cache_1, best_move.id_video);
+    }
+    else if (best_move.move == 1) {
+        swap(instance, best_move.id_cache_1, best_move.id_video, best_move.id_cache_2);
+    }
+
+    return best_score;
+}
+
+/// @brief Performs n iterations of local search
+/// @param instance 
+/// @param num_iterations 
+/// @return final score
+long long local_search(InstanceData* instance, int num_iterations) {
+    long long previous_score = instance->score;
+    long long score = instance->score;
+    for (int i = 0; i < num_iterations; i++) {
+        score = local_search_single_iteration(instance);
+
+        if (score == previous_score) return i;
+
+        previous_score = score;
+    }
+
+    return score;
 }

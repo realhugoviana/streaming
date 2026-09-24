@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 
+#ifndef INSTANCE_HPP
+#define INSTANCE_HPP
 
 /*
     STRUCTURES
@@ -60,6 +62,7 @@ struct InstanceData {
     Cache* caches; // Array containing all the caches
     bool** cache_affectation; // Matrix of boolean to describe the affectation of video to cache. Shape: VxC (row: video, col: cache)
     long long int sum_request_count; // Sum of all count in subsequent requests
+    long long score; // Weighted score: sum over requests of gain * count
 };
 
 /*
@@ -83,15 +86,7 @@ InstanceData parser();
 void showInstance(InstanceData* instance);
 void showVideoCacheAssociations(InstanceData* instance);
 void instanceOut(InstanceData* instance);
-int computeTotalGain(InstanceData* instance);
+long long computeTotalGain(InstanceData* instance);
+long long computeContestScore(InstanceData* instance);
 
-
-
-
-
-
-
-
-
-
-
+#endif
