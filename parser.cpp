@@ -377,11 +377,12 @@ int main(int argc, char* argv[]) {
     //    return 1;
     //}
     InstanceData instance = parser();
-    showInstance(&instance);
+    std::cerr << "request size: " << instance.ip.R << std::endl;
+    //showInstance(&instance);
     //greedy_density(&instance);
     //local_search(&instance, 1000);
-    //std::cerr << "score: " << instance.score << std::endl;
-    //std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
+    std::cerr << "score: " << instance.score << std::endl;
+    std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
 
     //instanceOut(&instance);
     return 0;
