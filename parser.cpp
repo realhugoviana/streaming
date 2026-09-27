@@ -364,6 +364,75 @@ void instanceOut(InstanceData* instance) {
     }
 }
 
+// Deep copies the InstanceData structure from an existing instance
+InstanceData deepCopyInstanceData(const InstanceData* original) {
+    if (!original) {
+        return {}; // Return a default constructed empty InstanceData if input is null
+    }
+
+    InstanceData copy;
+
+    // Copy primitive members
+    copy.ip = original->ip;
+    copy.sum_request_count = original->sum_request_count;
+    copy.score = original->score;
+
+    int V = copy.ip.V;
+    int E = copy.ip.E;
+    int R = copy.ip.R;
+    int C = copy.ip.C;
+
+    // --- Deep Copy Videos, Requests, and Caches ---
+    copy.videos = new Video[V];
+    for(int v = 0; v < V; ++v) {
+        // std::vector support assignment semantics (deep copy internal state)
+        copy.videos[v] = original->videos[v]; 
+    }
+
+    copy.requests = new Request[R];
+    for(int r = 0; r < R; ++r) {
+        copy.requests[r] = original->requests[r];
+    }
+    
+    copy.caches = new Cache[C];
+    for(int c = 0; c < C; ++c) {
+        copy.caches[c] = original->caches[c];
+    }
+
+    // --- Deep Copy Endpoints (Crucial: copy the nested pointer array) ---
+    copy.endpoints = new Endpoint[E];
+    for(int e = 0; e < E; ++e) {
+        const EndpointCacheConnection* oldConnections = original->endpoints[e].endpoint_connections;
+        int K = original->endpoints[e].K;
+
+        // Allocate and copy the connection array (the memory pointed to by endpoint_connections)
+        EndpointCacheConnection* newConnections = new EndpointCacheConnection[K];
+        for(int k = 0; k < K; ++k) {
+            newConnections[k] = oldConnections[k];
+        }
+
+        copy.endpoints[e].idE = original->endpoints[e].idE;
+        copy.endpoints[e].dc_latency = original->endpoints[e].dc_latency;
+        copy.endpoints[e].K = K;
+        // Assign the newly allocated memory address to avoid dangling pointers
+        copy.endpoints[e].endpoint_connections = newConnections; 
+    }
+
+    // --- Deep Copy Matrix: cache_affectation (bool**) ---
+    copy.cache_affectation = (bool**)malloc(V * sizeof(bool*));
+    for (int v = 0; v < V; ++v) {
+        copy.cache_affectation[v] = (bool*)calloc(C, sizeof(bool)); // Initialize to false
+    }
+
+    // Copying the matrix content element by element
+    for (int v = 0; v < V; ++v) {
+        for (int k = 0; k < C; ++k) {
+            copy.cache_affectation[v][k] = original->cache_affectation[v][k];
+        }
+    }
+
+    return copy;
+}
 
 /*
     MAIN
@@ -378,6 +447,8 @@ int main(int argc, char* argv[]) {
     //}
     InstanceData instance = parser();
     showInstance(&instance);
+    // InstanceData copie = deepCopyInstanceData(&instance);
+    // showInstance(&copie);
     //greedy_density(&instance);
     //local_search(&instance, 1000);
     //std::cerr << "score: " << instance.score << std::endl;
