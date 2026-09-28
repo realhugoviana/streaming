@@ -37,6 +37,19 @@ def registerGenerator(func:Callable) -> Callable:
     generator[func.__name__] = func
     return func
 
+lambdaCollection = {}
+def registerLambda(func:Callable) -> Callable:
+    """Decorator to register a function in the lambda collection.
+
+    Args:
+        func (Callable): An arbitrary function.
+
+    Returns:
+        Callable: The initial function.
+    """
+    lambdaCollection[func.__name__] = func
+    return func
+
 def generatorToString(E:int, C:int, X:int, videos:list[int], requests:dict[int,tuple[list[int], list[int]]], connected_caches:dict[int,tuple[list[int], list[int], list[int]]]) -> str:
     """Global function to transform variables of a generator to the string of a valid instance
 
@@ -205,10 +218,68 @@ def universalLambda(E:int, V:int, C:int, X:int, videoSizeLambda:Callable, reques
                 connections[idE][2].append(cache_latency)
     
     return generatorToString(E, C, X, videos, requests, connections)
+
+@registerLambda
+def video_negative_relu_distribution(idV, rng):
+    return max(1,MAX_AUTHORISED_VIDEO_SIZE - idV + rng.randint(0,idV+1))
+
+@registerLambda
+def request_bimodal_modular_uniform_distribution(idE, idV, rng):
+    return rng.randint(8000,12001) if (idE%2, idV%2) == (0,1) else rng.randint(-100,101)
+
+@registerLambda
+def dcl_endpoint_increasing_average_distribution(idE, rng):
+    return max(2,min((idE+MAX_AUTHORISED_SERVER_LATENCY)//2 + rng.randint(-100, 100), MAX_AUTHORISED_SERVER_LATENCY))
+
+@registerLambda
+def connection_fifth_eights_uniform_three_out_distribution(idE, idC, dcL, rng):
+    return rng.randint(-300, min(MAX_AUTHORISED_CACHE_LATENCY, dcL-1))
+
+@registerLambda
+def video_asymmetric_discrete_exponential_distribution(idV, rng):
+    if idV > MAX_AUTHORISED_VIDEO_NUMBER // 2:
+        return min(1000, 500 + (idV-(MAX_AUTHORISED_VIDEO_NUMBER // 2)) // 3)
+    else:
+        return rng.randint(1, 51)
+
+@registerLambda
+def dcl_small_midpoint_step(idE, rng):
+    if idE > MAX_AUTHORISED_VIDEO_NUMBER // 2:
+        return int(0.6*MAX_AUTHORISED_SERVER_LATENCY)
+    else:
+        return int(0.5*MAX_AUTHORISED_SERVER_LATENCY)
+
+@registerLambda
+def connection_step_distribution(idE, idC, dcL, rng):
+    if idE > MAX_AUTHORISED_VIDEO_NUMBER // 2:
+        if idC % 4 == 0:
+            return 0
+        else:
+            return min(dcL-1, rng.randint(1, int(0.5*min(MAX_AUTHORISED_CACHE_LATENCY,MAX_AUTHORISED_SERVER_LATENCY))))
+    else:
+        if idC % 4 == 0:
+            return min(dcL-1, rng.randint(1, int(0.2*min(MAX_AUTHORISED_CACHE_LATENCY,MAX_AUTHORISED_SERVER_LATENCY))))
+        else:
+            return 0
+
+@registerLambda
+def request_bell_distribution(idE, idV, rng):
+    if (idV + idE + rng.randint(0,2)) % 2  == 0:
+        return 0
     
+    if (idV + idE) % 6 >= 1:
+        return 0
+    
+    mu = MAX_AUTHORISED_ENDPOINT_NUMBER // 2
+    sd = mu // 8
+    return 1 + int(1/(np.sqrt(2*np.pi*sd**2))*np.exp(-(idE-mu)**2/(2*sd**2)) * (MAX_AUTHORISED_REQUEST_PER_ENDPOINT // 2 - 1))
+
 if __name__=="__main__":
-    generateFrom:Literal["dejaVu", "universalLambda"] = "dejaVu"
-    kwargs = {
+    # GENERATE FROM GENERATOR
+    generateFrom:Literal["dejaVu", "universalLambda"] = "universalLambda"
+    
+    # KWARGS of dejaVu42 and universalLambda42
+    kwargs_base = {
         "E":115, # dejaVu + universalLambda
         "V":10_000, # dejaVu + universalLambda
         "R":999_000, # dejaVu
@@ -217,12 +288,29 @@ if __name__=="__main__":
         "C":20, # dejaVu + universalLambda
         "X":2000, # dejaVu + universalLambda
         "seed":42, # dejaVu + universalLambda
-        "videoSizeLambda": lambda idV, rng: max(1,MAX_AUTHORISED_VIDEO_SIZE - idV + rng.randint(0,idV+1)), # universalLambda
-        "requestLambda": lambda idE, idV, rng: rng.randint(8000,12001) if (idE%2, idV%2) == (0,1) else rng.randint(-100,101), # universalLambda
-        "dcLambda": lambda idE, rng: max(2,min((idE+MAX_AUTHORISED_SERVER_LATENCY)//2 + rng.randint(-100, 100), MAX_AUTHORISED_SERVER_LATENCY)), # universalLambda
-        "connectionLambda": lambda idE, idC, dcL, rng: rng.randint(-300, min(MAX_AUTHORISED_CACHE_LATENCY, dcL-1)) # universalLambda
+        "videoSizeLambda": lambdaCollection["video_negative_relu_distribution"], # universalLambda
+        "requestLambda": lambdaCollection["request_bimodal_modular_uniform_distribution"], # universalLambda
+        "dcLambda": lambdaCollection["dcl_endpoint_increasing_average_distribution"], # universalLambda
+        "connectionLambda": lambdaCollection["connection_fifth_eights_uniform_three_out_distribution"],  # universalLambda
+        "name": ""
     }
+    
+    kwargs_asymmetric = {
+        "E":1000, # dejaVu + universalLambda
+        "V":10_000, # dejaVu + universalLambda
+        "C":250, # dejaVu + universalLambda
+        "X":2000, # dejaVu + universalLambda
+        "seed":42, # dejaVu + universalLambda
+        "videoSizeLambda": lambdaCollection["video_asymmetric_discrete_exponential_distribution"], # universalLambda
+        "requestLambda": lambdaCollection["request_bell_distribution"], # universalLambda
+        "dcLambda": lambdaCollection["dcl_small_midpoint_step"], # universalLambda
+        "connectionLambda": lambdaCollection["connection_step_distribution"],  # universalLambda
+        "name": "_asymmetric"
+    }
+    
+    # Choose your configurations
+    kwargs = kwargs_asymmetric
         
     # Generate the instance
-    with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}.in", "w") as file:
+    with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}{kwargs.get('name','')}.in", "w") as file:
         file.write(generator[generateFrom](**kwargs))
