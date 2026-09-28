@@ -245,7 +245,7 @@ void showInstance(InstanceData* instance) {
         );
 
         /// Information about their connections
-        for (int k = 0; k<endpoint.K; k<k++) {
+        for (int k = 0; k<endpoint.K; k++) {
             printf("|. Connected to Cache [%d] with latency [%dms]\n", 
                 endpoint.endpoint_connections[k].idC, 
                 endpoint.endpoint_connections[k].cache_latency
@@ -256,8 +256,7 @@ void showInstance(InstanceData* instance) {
 
     // Information on the requests
     std::cout << "\n---[Requests Data]---" << std::endl;
-    printf("Total requested quantity [%d]\n", instance->sum_request_count);
-    printf("Total requested quantity [%d]\n", instance->sum_request_count);
+    printf("Total requested quantity [%lld]\n", instance->sum_request_count);
     for (int r = 0; r<instance->ip.R; r++) {
         printf("[requests no. %d] The video [%d] is requested from endpoint [%d] [%d] times. [Unitary Gain: %d]\n",
             instance->requests[r].idR,
@@ -448,10 +447,12 @@ int main(int argc, char* argv[]) {
     //    return 1;
     //}
     InstanceData instance = parser();
-    showInstance(&instance);
-    // InstanceData copie = deepCopyInstanceData(&instance);
-    // showInstance(&copie);
-    //greedy_density(&instance);
+    // showInstance(&instance);
+
+    // greedy_density(&instance);
+    std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
+    instance = *ruin_recreate(&instance, 4, 10000, 100);
+    std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
     //local_search(&instance, 1000);
     //std::cerr << "score: " << instance.score << std::endl;
     //std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;

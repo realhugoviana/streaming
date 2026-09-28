@@ -232,4 +232,24 @@ long long ruin(InstanceData* instance, int num_moves) {
 /// @param num_rr_iterations
 /// @param num_moves
 /// @param num_ls_iterations
-/// @return best score 
+/// @return best instance
+InstanceData *ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_moves, int num_ls_iterations) {
+    InstanceData* base_solution = instance;
+    InstanceData* best_solution = instance;
+    long long best_score = best_solution->score;
+
+    for(int rr_i = 0; rr_i < num_rr_iterations; rr_i++) {
+        InstanceData current_instance = deepCopyInstanceData(base_solution);
+
+        ruin(&current_instance, num_moves);
+
+        long long score = local_search(&current_instance, num_ls_iterations);
+
+        if (score > best_score) {
+            best_score = score;
+            best_solution = &current_instance;
+        }
+    }
+
+    return best_solution;
+}
