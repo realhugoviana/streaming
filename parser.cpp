@@ -141,7 +141,8 @@ void endpointParser(InstanceData& instance) {
 void requestParser(InstanceData& instance) {
     // Hashmap to merge requests having same video and endpoints if necessary
     std::unordered_map<int, std::unordered_map<int, int>> requestMap;
-    int video_id, endpoint_id, count, Rprime;
+    int video_id, endpoint_id, count;
+    int Rprime = 0;
 
     // For each request, get the video, the endpoint and the count
     for (int r = 0; r<instance.ip.R; r++) {
