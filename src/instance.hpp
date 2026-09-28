@@ -90,5 +90,6 @@ long long computeTotalGain(InstanceData* instance);
 long long computeContestScore(InstanceData* instance);
 
 InstanceData deepCopyInstanceData(const InstanceData* original);
+void freeInstanceData(InstanceData* instance);
 
 #endif

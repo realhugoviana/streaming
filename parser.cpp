@@ -435,6 +435,24 @@ InstanceData deepCopyInstanceData(const InstanceData* original) {
     return copy;
 }
 
+// Frees everything an InstanceData owns (from parser() or deepCopyInstanceData), leaving it empty
+void freeInstanceData(InstanceData* instance) {
+    for (int e = 0; e < instance->ip.E; ++e) {
+        delete[] instance->endpoints[e].endpoint_connections;
+    }
+    delete[] instance->endpoints;
+    delete[] instance->videos;
+    delete[] instance->requests;
+    delete[] instance->caches;
+
+    for (int v = 0; v < instance->ip.V; ++v) {
+        free(instance->cache_affectation[v]);
+    }
+    free(instance->cache_affectation);
+
+    *instance = {};
+}
+
 /*
     MAIN
 */
@@ -451,7 +469,7 @@ int main(int argc, char* argv[]) {
 
     // greedy_density(&instance);
     std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
-    instance = *ruin_recreate(&instance, 4, 10000, 100);
+    ruin_recreate(&instance, 4, 10000, 100);
     std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
     //local_search(&instance, 1000);
     //std::cerr << "score: " << instance.score << std::endl;
