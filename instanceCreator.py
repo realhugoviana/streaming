@@ -135,7 +135,7 @@ def dejaVu(E:int=115, V:int=10_000, R:int=999_950, V_min_size:int=4, V_max_size:
         # Organize connected cache by adding latency to datacenter, connected caches and their corresponding latencies
         connectedCachesDict[idEndpoint] = (
             endpoint2DataCenterLatency[idEndpoint], # Latency to datacenter
-            rng.randint(0, C, size=CACHE_CONNECTIONS).tolist(), # Connected caches
+            rng.choice(np.arange(C), size=CACHE_CONNECTIONS, replace=False).tolist(), # Connected caches
             rng.randint(1, min(MAX_AUTHORISED_CACHE_LATENCY, endpoint2DataCenterLatency[idEndpoint]), size=CACHE_CONNECTIONS).tolist() # Corresponding latency
         )
         
@@ -207,7 +207,7 @@ def universalLambda(E:int, V:int, C:int, X:int, videoSizeLambda:Callable, reques
     return generatorToString(E, C, X, videos, requests, connections)
     
 if __name__=="__main__":
-    generateFrom:Literal["dejaVu", "universalLambda"] = "universalLambda"
+    generateFrom:Literal["dejaVu", "universalLambda"] = "dejaVu"
     kwargs = {
         "E":115, # dejaVu + universalLambda
         "V":10_000, # dejaVu + universalLambda
@@ -222,7 +222,7 @@ if __name__=="__main__":
         "dcLambda": lambda idE, rng: max(2,min((idE+MAX_AUTHORISED_SERVER_LATENCY)//2 + rng.randint(-100, 100), MAX_AUTHORISED_SERVER_LATENCY)), # universalLambda
         "connectionLambda": lambda idE, idC, dcL, rng: rng.randint(-300, min(MAX_AUTHORISED_CACHE_LATENCY, dcL-1)) # universalLambda
     }
-    
+        
     # Generate the instance
     with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}.in", "w") as file:
         file.write(generator[generateFrom](**kwargs))
