@@ -321,8 +321,21 @@ if __name__=="__main__":
         "name": "_demo"
     }
     
+    kwargs_demo2 = {
+        "E":100, # dejaVu + universalLambda
+        "V":1_000, # dejaVu + universalLambda
+        "C":50, # dejaVu + universalLambda
+        "X":2000, # dejaVu + universalLambda
+        "seed":42, # dejaVu + universalLambda
+        "videoSizeLambda": lambdaCollection["video_negative_relu_distribution"], # universalLambda
+        "requestLambda": lambdaCollection["request_bell_distribution"], # universalLambda
+        "dcLambda": lambdaCollection["dcl_small_midpoint_step"], # universalLambda
+        "connectionLambda": lambdaCollection["connection_fifth_eights_uniform_three_out_distribution"],  # universalLambda
+        "name": "_demo2"
+    }
+    
     # Choose your configurations
-    kwargs = kwargs_demo
+    kwargs = kwargs_demo2
         
     # Generate the instance
     with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}{kwargs.get('name','')}.in", "w") as file:
