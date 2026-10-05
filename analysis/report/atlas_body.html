@@ -1,0 +1,428 @@
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">HashCode 2017 · Streaming videos · instance analysis</div>
+  <h1>Streaming Instance Atlas</h1>
+  <p class="lede">What each instance is made of, which of those features decide how well the team's greedy does, and how much headroom is left. Every score below was re-computed with an independent scorer; every bound is a proven upper bound on the optimum.</p>
+  <div class="figs" id="figs"></div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Summary</div>
+    <h2>What the analysis found</h2>
+  </div>
+  <ol class="findings">
+    <li><span>The ~2.6M comes entirely from <code>greedy_density</code>: <span data-v="teamTotal"></span> on the four official instances. <code>local_search</code> never makes a move after it, on any instance.</span></li>
+    <li><span>Against provable upper bounds the greedy is within 2% of optimal on every official instance. It is <span data-v="gap.me_at_the_zoo"></span> below the true optimum on <span class="mono">me_at_the_zoo</span> (solved exactly: <span data-v="bound.me_at_the_zoo"></span>), at most <span data-v="gap.videos_worth_spreading"></span> on <span class="mono">videos_worth_spreading</span>, at most <span data-v="gap.kittens"></span> on <span class="mono">kittens</span> and at most <span data-v="gap.trending_today"></span> on <span class="mono">trending_today</span>. No algorithm can add more than <span data-v="headroom"></span> points to the 2.64M total.</span></li>
+    <li><span>Three features decide which algorithm helps. <strong>Capacity pressure</strong> decides whether the problem is packing or selection. <strong>Item granularity</strong> decides whether knapsack integrality costs anything. <strong>Cache overlap</strong> decides whether the problem splits per cache or turns into a coverage problem.</span></li>
+    <li><span>Ranking by density (gain ÷ size) is essential when capacity is scarce and sizes vary: switching to raw gain loses <span data-v="gainloss.custom_universallambda42"></span> on universalLambda and <span data-v="gainloss.custom_dejavu42"></span> on dejaVu. On <span class="mono">trending_today</span>, where everything fits, it is the <em>wrong</em> ranking.</span></li>
+    <li><span>An exact per-cache knapsack re-optimisation (the "replace" move the current local search lacks) adds 0.2–0.8% wherever caches overlap little, and nothing on <span class="mono">trending_today</span>.</span></li>
+    <li><span>Two correctness issues turned up: an uninitialised request counter in the parser, and 41 duplicated endpoint→cache links in the dejaVu instance that the greedy and the local search read differently.</span></li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Scoreboard</div>
+    <h2>Scores against the best provable bound</h2>
+    <p>The gap to a bound is an upper limit on what any algorithm could still gain. The true optimum lies somewhere between the greedy score and the bound; only <span class="mono">me_at_the_zoo</span> is small enough to solve exactly.</p>
+  </div>
+  <div class="tbl-wrap"><table id="scoreboard"></table></div>
+  <p class="note" id="scorenote"></p>
+  <div class="chart" id="gapchart"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Algorithm response</div>
+    <h2>How each instance reacts to a change of algorithm</h2>
+    <p>Same parser and scorer for every run. The lazy greedy uses a priority queue and re-evaluates an entry only when it reaches the top. That gives the same placements as <code>greedy_density</code> (up to ties) because a pair's gain can only fall as other placements are made. The knapsack re-optimisation starts from the team's greedy solution and rewrites one cache at a time, optimally, with all other caches fixed, until no cache improves.</p>
+  </div>
+  <div class="tbl-wrap"><table id="response"></table></div>
+  <p class="note">Percentages are relative to the team greedy. “Team LS” is <code>local_search(&amp;instance, n)</code> run after <code>greedy_density</code>. It finds no move on any instance except custom_dejavu42, where its one “improvement” actually lowers the score (see the duplicated-links issue below).</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Features</div>
+    <h2>The feature matrix</h2>
+    <p>Cell shading runs from low to high within each row, so it compares instances rather than features. The rows marked ● are the ones that predicted algorithm behaviour in the experiments above.</p>
+  </div>
+  <div class="tbl-wrap"><table class="matrix" id="matrix"></table></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Features → algorithms</div>
+    <h2>Which feature calls for which method</h2>
+  </div>
+  <div class="resp" id="resp"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Instance profiles</div>
+    <h2>Six instances, six different problems</h2>
+    <p>Each card shows the video-size distribution (bars, in MB) and the popularity curve: the share of total request count captured by the most-requested x% of videos. The diagonal marks perfectly even popularity.</p>
+  </div>
+  <div class="profiles" id="profiles"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Found along the way</div>
+    <h2>Code and data issues</h2>
+  </div>
+  <div class="issues">
+    <div class="issue"><span class="sev bug">Bug</span><div>
+      <h3>Uninitialised request counter in the parser</h3>
+      <p><code>int video_id, endpoint_id, count, Rprime;</code> in <code>requestParser</code> (<span class="mono">parser.cpp:144</span>) never sets <code>Rprime = 0</code>. On this machine it started near 32,766, so <code>ip.R</code> came out as 32,770 on the 5-request example. The requests array is then allocated with ~32k extra slots whose <code>count</code> is uninitialised, and <code>computeContestScore</code> adds those counts to its denominator. Scores are only right because fresh heap pages happen to be zero. Fix: <code>int Rprime = 0;</code>.</p>
+    </div></div>
+    <div class="issue"><span class="sev bug">Bug</span><div>
+      <h3>Duplicated endpoint→cache links in custom_dejavu42</h3>
+      <p>The dejaVu generator draws each endpoint's 4 caches with replacement (<code>rng.randint(0, C, size=CACHE_CONNECTIONS)</code>, <span class="mono">instanceCreator.py:138</span>), so 39 of 115 endpoints list the same cache twice with two different latencies (41 links in total). The validator does not check for this. <code>latencyToCache</code> in the greedy takes the <em>first</em> link, while <code>compute_updated_score</code> in the local search takes the <em>best</em>. So the same solution scores 64,148 in one and 64,654 in the other. Chaining them does real damage: run after the greedy, <code>local_search</code> removes video 9984 from cache 16 and reports an improvement from 64,148 to 64,646, but under a consistent reading the solution got worse, from 64,654 to 64,646. Fix: sample with <code>rng.choice(C, 4, replace=False)</code>, or keep the lowest latency when parsing.</p>
+    </div></div>
+    <div class="issue"><span class="sev perf">Method</span><div>
+      <h3>The local search cannot move after the greedy</h3>
+      <p>This is guaranteed, not a coincidence. The greedy stops only when no video with positive gain fits in any cache. Removing a video never helps. And if moving video v from cache a to cache b improved the score, adding v to b while keeping it in a would improve it at least as much, which the stopping rule already excludes. So <code>local_search</code> can never move after <code>greedy_density</code>, unless the two disagree on latencies as they do on dejaVu. The neighbourhood needs a <em>replace</em> move (take video a out of cache c and put video b in), which is what the per-cache knapsack re-optimisation applies optimally.</p>
+    </div></div>
+    <div class="issue"><span class="sev perf">Speed</span><div>
+      <h3>The greedy rescans all V×C pairs per placement</h3>
+      <p><code>greedy_density</code> took <span data-v="t.kittens"></span> on <span class="mono">kittens</span> (5M pairs, ~11k placements). A lazy priority queue gives the same result in <span data-v="tl.kittens"></span>, which frees the time budget for improvement phases.</p>
+    </div></div>
+    <div class="issue"><span class="sev data">Minor</span><div>
+      <h3>Smaller things</h3>
+      <p><code>local_search</code> returns the iteration index when it converges but the score when it runs out of iterations (<span class="mono">local_search.cpp:180</span>). The endpoint loop in <code>showInstance</code> increments with <code>k&lt;k++</code> (<span class="mono">parser.cpp:247</span>). The two <span class="mono">example.in</span> copies differ: the generator repo's copy has endpoint 0 at 200 ms instead of 1000 ms. The generator repo's instance files use CRLF line endings; <code>std::cin</code> handles them, but piping them through line-based tools needs <code>tr -d '\r'</code>.</p>
+    </div></div>
+  </div>
+</section>
+
+<footer>
+  <div><strong>How the bounds were computed.</strong> <em>Uncapacitated</em>: every request served from its best connected cache. <em>Coverage</em>: for each video, k copies are worth at most min(total demand value, sum of its k best single-cache gains); relaxing integrality and pooling all capacity gives a fractional knapsack. <em>Aggregated LP</em>: the same idea with per-cache capacity kept. <em>Full LP</em>: the facility-location relaxation (y<sub>rc</sub> ≤ x<sub>vc</sub>, Σ<sub>c</sub> y<sub>rc</sub> ≤ 1, per-cache capacity). <em>MIP</em>: the full model with integer placements, solved to proven optimality with HiGHS. Each row reports the tightest bound that finished.</div>
+  <div>Scores use the contest formula ⌊1000 · Σ saved latency × count ÷ Σ count⌋ after merging duplicate (video, endpoint) lines. For custom_dejavu42 a duplicated link counts with its best latency.</div>
+</footer>
+</div>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="data">/*DATA*/</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const OFFICIAL = ["me_at_the_zoo", "videos_worth_spreading", "trending_today", "kittens"];
+  const CUSTOM = ["custom_dejavu42", "custom_universallambda42"];
+  const ALL = OFFICIAL.concat(CUSTOM);
+  const LABEL = { me_at_the_zoo: "me_at_the_zoo", videos_worth_spreading: "videos_worth_spreading", trending_today: "trending_today", kittens: "kittens", custom_dejavu42: "custom_dejavu42", custom_universallambda42: "custom_universallambda42" };
+  const nf = new Intl.NumberFormat("en-US");
+  const fmt = (x) => nf.format(Math.round(x));
+  const pct = (x, d = 2) => (x * 100).toFixed(d) + "%";
+  const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+  const NS = "http://www.w3.org/2000/svg";
+  const sv = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+
+  // ---------- derived numbers
+  const F = D.features, B = D.bounds, E = D.exp, T = D.team;
+  // score each instance on the same reading as the bounds (best link); only dejaVu differs
+  const greedy = (n) => F[n].greedy_contest;
+  const teamReported = (n) => T[n].greedy_contest;
+  const kca = (n) => (E[n] && E[n].kca_from_team_greedy) ? E[n].kca_from_team_greedy.final_contest : null;
+  function bestBound(n) {
+    const c = [];
+    const f = F[n];
+    c.push({ v: f.UB_uncapacitated, k: "uncapacitated" });
+    c.push({ v: f.UB_knapsack_sum, k: "per-cache knapsack" });
+    const b = B[n] || {};
+    if (b.UB_cov != null) c.push({ v: b.UB_cov, k: "coverage" });
+    if (b.ALP && b.ALP.status === 0) c.push({ v: Math.floor(b.ALP.value), k: "aggregated LP" });
+    if (b.RLP && b.RLP.status === 0) c.push({ v: Math.floor(b.RLP.value), k: "request LP" });
+    if (b.LP && b.LP.status === 0) c.push({ v: Math.floor(b.LP.value), k: "full LP" });
+    if (b.MIP && b.MIP.status === 0 && b.MIP.gap === 0) c.push({ v: b.MIP.verified_contest, k: "optimum (MIP)", proven: true });
+    c.sort((a, b) => a.v - b.v);
+    return c[0];
+  }
+  const V = {};
+  V.teamTotal = fmt(OFFICIAL.reduce((s, n) => s + teamReported(n), 0));
+  V.headroom = fmt(OFFICIAL.reduce((s, n) => s + bestBound(n).v - teamReported(n), 0));
+  ALL.forEach((n) => {
+    const b = bestBound(n);
+    V["bound." + n] = fmt(b.v);
+    V["gap." + n] = pct(1 - greedy(n) / b.v);
+    const g = E[n] && E[n].greedy_gain ? E[n].greedy_gain.final_contest : null;
+    const dd = E[n] && E[n].greedy_density ? E[n].greedy_density.final_contest : null;
+    if (g && dd) V["gainloss." + n] = pct(1 - g / dd, 0);
+    V["t." + n] = (T[n].t_greedy_ms / 1000).toFixed(0) + " s";
+    if (E[n] && E[n].greedy_density) V["tl." + n] = E[n].greedy_density.time_s.toFixed(1) + " s";
+  });
+  document.querySelectorAll("[data-v]").forEach((s) => { s.textContent = V[s.dataset.v] ?? "—"; });
+
+  // ---------- headline figures
+  const zooB = bestBound("me_at_the_zoo");
+  const figs = [
+    { lab: "Team greedy, 4 official instances", val: V.teamTotal, sub: "me_at_the_zoo + videos + trending + kittens" },
+    { lab: "Best-bound total, same 4", val: fmt(OFFICIAL.reduce((s, n) => s + bestBound(n).v, 0)), sub: "no algorithm can score above this" },
+    { lab: "me_at_the_zoo optimum", val: fmt(zooB.v), sub: "proven by MIP; greedy is " + V["gap.me_at_the_zoo"] + " below" },
+    { lab: "Greedy time on kittens", val: V["t.kittens"] + " → " + V["tl.kittens"], sub: "same placements with a lazy priority queue" },
+  ];
+  const figsEl = document.getElementById("figs");
+  figs.forEach((f) => { const d = el("div", { class: "fig" }); d.append(el("div", { class: "lab" }, f.lab), el("div", { class: "val" }, f.val), el("div", { class: "sub" }, f.sub)); figsEl.append(d); });
+
+  // ---------- tooltip
+  const tip = document.getElementById("tip");
+  function showTip(evt, title, lines) {
+    tip.replaceChildren(el("b", {}, title));
+    lines.forEach((l) => tip.append(el("div", {}, l)));
+    tip.hidden = false;
+    let x, y;
+    if (evt.clientX !== undefined && evt.type !== "focus") { x = evt.clientX; y = evt.clientY; }
+    else { const r = evt.target.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top; }
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + "px";
+    tip.style.top = Math.max(8, y - h - 12) + "px";
+  }
+  const hideTip = () => { tip.hidden = true; };
+  function bindTip(node, title, lines) {
+    node.setAttribute("tabindex", "0");
+    node.setAttribute("aria-label", title + ": " + lines.join("; "));
+    node.addEventListener("pointermove", (e) => showTip(e, title, lines));
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("focus", (e) => showTip(e, title, lines));
+    node.addEventListener("blur", hideTip);
+  }
+
+  // ---------- scoreboard
+  (function () {
+    const t = document.getElementById("scoreboard");
+    const head = el("thead"); const hr = el("tr");
+    ["Instance", "Team greedy", "+ knapsack re-opt", "Best upper bound", "Bound type", "Gap, greedy", "Gap, re-opt"].forEach((h) => hr.append(el("th", {}, h)));
+    head.append(hr); t.append(head);
+    const body = el("tbody");
+    const addRow = (n, cls) => {
+      const b = bestBound(n), k = kca(n);
+      const tr = el("tr", cls ? { class: cls } : {});
+      tr.append(el("td", { class: "name" }, LABEL[n]));
+      tr.append(el("td", {}, fmt(teamReported(n)) + (teamReported(n) !== greedy(n) ? " *" : "")));
+      tr.append(el("td", {}, k ? fmt(k) : "running"));
+      tr.append(el("td", {}, fmt(b.v)));
+      const td = el("td"); td.append(el("span", { class: "chip" + (b.proven ? " proven" : "") }, b.k)); tr.append(td);
+      tr.append(el("td", {}, pct(1 - greedy(n) / b.v)));
+      tr.append(el("td", {}, k ? pct(1 - k / b.v) : "—"));
+      body.append(tr);
+    };
+    OFFICIAL.forEach((n) => addRow(n));
+    const tot = el("tr", { class: "total" });
+    const sT = OFFICIAL.reduce((s, n) => s + teamReported(n), 0), sK = OFFICIAL.reduce((s, n) => s + (kca(n) || greedy(n)), 0), sB = OFFICIAL.reduce((s, n) => s + bestBound(n).v, 0), sG = OFFICIAL.reduce((s, n) => s + greedy(n), 0);
+    [ "Official total", fmt(sT), fmt(sK), fmt(sB), "", pct(1 - sG / sB), pct(1 - sK / sB) ].forEach((v, i) => tot.append(el("td", i === 0 ? { class: "name" } : {}, v)));
+    body.append(tot);
+    CUSTOM.forEach((n) => addRow(n));
+    t.append(body);
+    document.getElementById("scorenote").textContent = "Gaps against a coverage bound are the least tight. On kittens and universalLambda the full LP was too large to solve here (about 70M and 9M variables), so those two gaps overstate the real headroom. * custom_dejavu42: the team's greedy reads the first of two duplicated links (64,148). Scored with the best link, which every other column uses, the same solution is worth " + fmt(greedy("custom_dejavu42")) + ".";
+  })();
+
+  // ---------- gap dot chart
+  (function () {
+    const host = document.getElementById("gapchart");
+    const lg = el("div", { class: "legend" });
+    const a = el("span"); const ai = el("i"); ai.style.background = "var(--s1)"; a.append(ai, document.createTextNode("Team greedy"));
+    const b = el("span"); const bi = el("i"); bi.style.background = "var(--s2)"; b.append(bi, document.createTextNode("+ per-cache knapsack re-opt"));
+    lg.append(a, b); host.append(lg);
+    const rows = ALL.map((n) => ({ n, b: bestBound(n).v, g: 1 - greedy(n) / bestBound(n).v, k: kca(n) ? 1 - kca(n) / bestBound(n).v : null }));
+    const maxG = Math.max(...rows.map((r) => r.g));
+    const xmax = Math.ceil(maxG * 100 / 2) * 2 / 100 || 0.02;
+    const W = 1000, L = 210, Rm = 30, rowH = 34, top = 8, H = top + rows.length * rowH + 34;
+    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Gap between score and best upper bound per instance" });
+    const x = (v) => L + (v / xmax) * (W - L - Rm);
+    for (let t = 0; t <= xmax + 1e-9; t += xmax <= 0.06 ? 0.01 : 0.02) {
+      svg.append(sv("line", { x1: x(t), x2: x(t), y1: top, y2: top + rows.length * rowH, class: t === 0 ? "base" : "grid" }));
+      svg.append(sv("text", { x: x(t), y: top + rows.length * rowH + 18, "text-anchor": "middle", class: "axis-text" }, (t * 100).toFixed(0) + "%"));
+    }
+    svg.append(sv("text", { x: W - Rm, y: top + rows.length * rowH + 32, "text-anchor": "end", class: "axis-text" }, "gap to best upper bound (0% = provably optimal)"));
+    rows.forEach((r, i) => {
+      const cy = top + i * rowH + rowH / 2;
+      svg.append(sv("text", { x: L - 14, y: cy + 4, "text-anchor": "end", class: "row-text" }, r.n));
+      if (r.k !== null) svg.append(sv("line", { x1: x(r.k), x2: x(r.g), y1: cy, y2: cy, stroke: "var(--axis)", "stroke-width": 2 }));
+      const pts = [{ v: r.g, c: "var(--s1)", lab: "Team greedy", s: greedy(r.n) }];
+      if (r.k !== null) pts.push({ v: r.k, c: "var(--s2)", lab: "+ knapsack re-opt", s: kca(r.n) });
+      pts.forEach((p) => {
+        svg.append(sv("circle", { cx: x(p.v), cy, r: 6, fill: p.c, stroke: "var(--surface)", "stroke-width": 2 }));
+        const hit = sv("circle", { cx: x(p.v), cy, r: 13, class: "hit" });
+        bindTip(hit, r.n + " · " + p.lab, [fmt(p.s) + " points", pct(p.v) + " below bound " + fmt(r.b)]);
+        svg.append(hit);
+      });
+      svg.append(sv("text", { x: x(Math.max(r.g, r.k ?? 0)) + 12, y: cy + 4, class: "axis-text" }, pct(r.g) + (r.k !== null ? " → " + pct(r.k) : "")));
+    });
+    host.append(svg);
+  })();
+
+  // ---------- algorithm response
+  (function () {
+    const t = document.getElementById("response");
+    const hr = el("tr");
+    ["Instance", "Team greedy", "Lazy greedy (density)", "Greedy by raw gain", "Knapsack re-opt", "Team LS", "Time: team greedy", "Time: lazy greedy"].forEach((h) => hr.append(el("th", {}, h)));
+    const th = el("thead"); th.append(hr); t.append(th);
+    const body = el("tbody");
+    const rel = (a, b) => { const d = a / b - 1; return (d >= 0 ? "+" : "−") + Math.abs(d * 100).toFixed(2) + "%"; };
+    ALL.forEach((n) => {
+      const e = E[n] || {}, base = greedy(n);
+      const tr = el("tr");
+      tr.append(el("td", { class: "name" }, n));
+      tr.append(el("td", {}, fmt(base)));
+      tr.append(el("td", {}, e.greedy_density ? fmt(e.greedy_density.final_contest) : "—"));
+      const g = e.greedy_gain ? e.greedy_gain.final_contest : null;
+      tr.append(el("td", {}, g ? fmt(g) + "  (" + rel(g, base) + ")" : "—"));
+      const k = kca(n);
+      tr.append(el("td", {}, k ? fmt(k) + "  (" + rel(k, base) + ")" : "running"));
+      tr.append(el("td", {}, n === "custom_dejavu42" ? "1 move, −8 pts" : "no move"));
+      tr.append(el("td", {}, (T[n].t_greedy_ms / 1000).toFixed(1) + " s"));
+      tr.append(el("td", {}, e.greedy_density ? e.greedy_density.time_s.toFixed(1) + " s" : "<0.1 s"));
+      body.append(tr);
+    });
+    t.append(body);
+  })();
+
+  // ---------- feature matrix
+  (function () {
+    const t = document.getElementById("matrix");
+    const hr = el("tr"); hr.append(el("th", {}, "Feature"));
+    ALL.forEach((n) => hr.append(el("th", {}, n.replace("custom_", "").replace("_", "_​"))));
+    const th = el("thead"); th.append(hr); t.append(th);
+    const body = el("tbody");
+    const f = (n) => F[n];
+    const rows = [
+      ["Scale"],
+      ["Videos V", "", (n) => f(n).V, fmt],
+      ["Endpoints E", "", (n) => f(n).E, fmt],
+      ["Request lines", "as written in the file", (n) => f(n).R_raw, fmt, "log"],
+      ["Distinct (video, endpoint) requests", "after merging duplicate lines", (n) => f(n).R_dedup, fmt, "log"],
+      ["Duplicate lines", "share merged away", (n) => f(n).dup_request_rate, (v) => pct(v, 1)],
+      ["Caches C × capacity X", "", (n) => f(n).C * f(n).X, (v, n) => f(n).C + " × " + fmt(f(n).X), "log"],
+      ["Capacity and granularity"],
+      ["● Capacity pressure ρ", "C·X ÷ volume of requested, cacheable videos", (n) => f(n).capacity_over_catalogue, (v) => v.toFixed(3), "log"],
+      ["● Videos per cache", "X ÷ mean video size", (n) => f(n).X / f(n).size_mean, (v) => v.toFixed(1), "log"],
+      ["Candidate volume per cache", "median, in multiples of X", (n) => f(n).per_cache_candidate_volume_over_X_q[2], (v) => v.toFixed(1) + "×", "log"],
+      ["Video sizes"],
+      ["Size range", "min – max (MB)", (n) => f(n).size_q[4], (v, n) => fmt(f(n).size_q[0]) + "–" + fmt(f(n).size_q[4])],
+      ["● Size variability", "coefficient of variation", (n) => f(n).size_cv, (v) => v.toFixed(2)],
+      ["Videos of size 1", "", (n) => f(n).frac_videos_size1, (v) => pct(v, 1)],
+      ["Popularity"],
+      ["● Popularity concentration", "Gini of total count per video", (n) => f(n).video_pop_gini, (v) => v.toFixed(2)],
+      ["Top 1% of videos", "share of total count", (n) => f(n).top1pct_video_share, (v) => pct(v, 1)],
+      ["Top 10% of videos", "share of total count", (n) => f(n).top10pct_video_share, (v) => pct(v, 1)],
+      ["Endpoints per video", "median", (n) => f(n).endpoints_per_requested_video_q[2], (v) => fmt(v)],
+      ["Network"],
+      ["● Caches per request", "demand-weighted mean K", (n) => f(n).caches_per_unit_demand, (v) => v.toFixed(1), "log"],
+      ["● Cache overlap", "mean Jaccard of endpoint sets", (n) => f(n).cache_pair_jaccard_mean, (v) => v.toFixed(3)],
+      ["● 2nd best ÷ best saving", "per endpoint, demand-weighted", (n) => f(n).second_over_best_saving_demandw, (v) => v.toFixed(3)],
+      ["Worst ÷ best saving", "per endpoint, demand-weighted", (n) => f(n).worst_over_best_saving_demandw, (v) => v.toFixed(2)],
+      ["Unreachable demand", "from endpoints with no cache", (n) => f(n).frac_demand_from_K0, (v) => pct(v, 1)],
+      ["Team greedy solution"],
+      ["Cache fill", "", (n) => f(n).greedy_fill, (v) => pct(v, 2)],
+      ["Copies per placed video", "", (n) => f(n).greedy_copies_per_video, (v) => v.toFixed(2)],
+      ["Demand served", "share of total count", (n) => f(n).greedy_frac_demand_served, (v) => pct(v, 1)],
+      ["Value captured on served requests", "vs. serving each from its best cache", (n) => f(n).greedy_value_capture_of_served, (v) => pct(v, 1)],
+    ];
+    rows.forEach((r) => {
+      const tr = el("tr");
+      if (r.length === 1) { tr.className = "group"; const td = el("td", { colspan: ALL.length + 1 }, r[0]); tr.append(td); body.append(tr); return; }
+      const [name, sub, get, show, scale] = r;
+      const td0 = el("td", { class: "fname" }, name); if (sub) td0.append(el("small", {}, sub)); tr.append(td0);
+      const vals = ALL.map(get);
+      const tv = vals.map((v) => (scale === "log" ? Math.log10(Math.max(v, 1e-9)) : v));
+      const lo = Math.min(...tv), hi = Math.max(...tv);
+      ALL.forEach((n, i) => {
+        const td = el("td", { class: "cell" }, show(vals[i], n));
+        td.style.setProperty("--t", hi > lo ? ((tv[i] - lo) / (hi - lo)).toFixed(3) : 0);
+        tr.append(td);
+      });
+      body.append(tr);
+    });
+    t.append(body);
+  })();
+
+  // ---------- feature → algorithm cards
+  (function () {
+    const host = document.getElementById("resp");
+    CARDS.forEach((c) => {
+      const d = el("div", { class: "card" });
+      d.append(el("div", { class: "tag" }, c.tag), el("h3", {}, c.title));
+      const kv = el("dl", { class: "kv" });
+      c.kv.forEach(([k, v]) => { kv.append(el("dt", {}, k), el("dd", {}, v)); });
+      d.append(kv);
+      c.p.forEach((p) => d.append(el("p", {}, p)));
+      host.append(d);
+    });
+  })();
+
+  // ---------- instance profiles
+  (function () {
+    const host = document.getElementById("profiles");
+    ALL.forEach((n) => {
+      const P = D.plots[n], pr = PROFILES[n];
+      const card = el("div", { class: "profile" });
+      card.append(el("h3", {}, n), el("div", { class: "origin" }, pr.origin));
+      const minis = el("div", { class: "minis" });
+      // size histogram
+      const m1 = el("div", { class: "mini" });
+      const w = 300, h = 120, pl = 4, pb = 18;
+      const s1 = sv("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": n + " video size histogram" });
+      const hist = P.size_hist, edges = P.size_edges, mx = Math.max(...hist);
+      const bw = (w - pl * 2) / hist.length;
+      s1.append(sv("line", { x1: pl, x2: w - pl, y1: h - pb, y2: h - pb, class: "base" }));
+      hist.forEach((c, i) => {
+        const bh = mx ? (c / mx) * (h - pb - 6) : 0;
+        const xx = pl + i * bw + 1, ww = Math.max(1, bw - 2);
+        if (bh > 0) {
+          const r = Math.min(3, ww / 2, bh);
+          const y0 = h - pb, y1 = y0 - bh;
+          s1.append(sv("path", { d: `M${xx},${y0}V${y1 + r}Q${xx},${y1} ${xx + r},${y1}H${xx + ww - r}Q${xx + ww},${y1} ${xx + ww},${y1 + r}V${y0}Z`, fill: "var(--s1)" }));
+        }
+        const hit = sv("rect", { x: pl + i * bw, y: 0, width: bw, height: h - pb, class: "hit" });
+        bindTip(hit, fmt(edges[i]) + "–" + fmt(edges[i + 1]) + " MB", [fmt(c) + " videos"]);
+        s1.append(hit);
+      });
+      s1.append(sv("text", { x: pl, y: h - 3, class: "axis-text" }, "0"));
+      s1.append(sv("text", { x: w - pl, y: h - 3, "text-anchor": "end", class: "axis-text" }, fmt(edges[edges.length - 1]) + " MB"));
+      m1.append(el("div", { class: "cap" }, "Video sizes · cache X = " + fmt(P.X) + " MB"), s1);
+      // Lorenz
+      const m2 = el("div", { class: "mini" });
+      const s2 = sv("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": n + " popularity curve" });
+      const px = (u) => pl + u * (w - pl * 2), py = (u) => (h - pb) - u * (h - pb - 6);
+      s2.append(sv("line", { x1: px(0), x2: px(1), y1: py(0), y2: py(0), class: "base" }));
+      s2.append(sv("line", { x1: px(0), x2: px(1), y1: py(0), y2: py(1), class: "grid" }));
+      s2.append(sv("line", { x1: px(0), x2: px(1), y1: py(1), y2: py(1), class: "grid" }));
+      const L = P.lorenz, k = L.length - 1;
+      const pts = L.map((v, i) => px(i / k) + "," + py(v)).join(" ");
+      s2.append(sv("polygon", { points: px(0) + "," + py(0) + " " + pts + " " + px(1) + "," + py(0), fill: "var(--s1)", "fill-opacity": 0.1 }));
+      s2.append(sv("polyline", { points: pts, fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      const i10 = Math.round(0.1 * k);
+      s2.append(sv("circle", { cx: px(0.1), cy: py(L[i10]), r: 4, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }));
+      s2.append(sv("text", { x: px(0.1) + 9, y: py(L[i10]) + 12, class: "axis-text" }, "top 10% → " + pct(L[i10], 0)));
+      s2.append(sv("text", { x: pl, y: h - 3, class: "axis-text" }, "0%"));
+      s2.append(sv("text", { x: w - pl, y: h - 3, "text-anchor": "end", class: "axis-text" }, "100% of videos"));
+      const hitL = sv("rect", { x: pl, y: 0, width: w - pl * 2, height: h - pb, class: "hit" });
+      const cross = sv("line", { y1: 6, y2: h - pb, stroke: "var(--muted)", "stroke-width": 1, opacity: 0 });
+      s2.append(cross);
+      hitL.addEventListener("pointermove", (e) => {
+        const r = s2.getBoundingClientRect();
+        const u = Math.min(1, Math.max(0, ((e.clientX - r.left) / r.width * w - pl) / (w - pl * 2)));
+        const j = Math.round(u * k);
+        cross.setAttribute("x1", px(j / k)); cross.setAttribute("x2", px(j / k)); cross.setAttribute("opacity", 1);
+        showTip(e, "Top " + Math.round((j / k) * 100) + "% of videos", [pct(L[j], 1) + " of total request count"]);
+      });
+      hitL.addEventListener("pointerleave", () => { cross.setAttribute("opacity", 0); hideTip(); });
+      const sumLines = ["top 1% of videos → " + pct(F[n].top1pct_video_share, 1), "top 10% → " + pct(L[i10], 1)];
+      hitL.setAttribute("tabindex", "0");
+      hitL.setAttribute("aria-label", "Popularity: " + sumLines.join("; "));
+      hitL.addEventListener("focus", (e) => showTip(e, "Popularity", sumLines));
+      hitL.addEventListener("blur", hideTip);
+      s2.append(hitL);
+      m2.append(el("div", { class: "cap" }, "Popularity curve · Gini " + F[n].video_pop_gini.toFixed(2)), s2);
+      minis.append(m1, m2);
+      card.append(minis);
+      pr.p.forEach((p) => card.append(el("p", {}, p)));
+      const v = el("p", { class: "verdict" }); v.append(el("strong", {}, "What responds: "), document.createTextNode(pr.verdict));
+      card.append(v);
+      host.append(card);
+    });
+  })();
+})();
+</script>

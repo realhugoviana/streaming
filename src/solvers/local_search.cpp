@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 
+#include "greedy_density.cpp"
 #include "../instance.hpp"
 
 /// @brief Structure holding a move inside the neighborhood
@@ -195,34 +196,22 @@ long long ruin(InstanceData* instance, int num_moves) {
     std::random_device rd;
     std::mt19937 gen(rd());
 
+    std::uniform_real_distribution<double> coin(0.0, 1.0);
+
     for (int i = 0; i < num_moves; ++i) {
-        // 1. Select a random video to modify
-        std::uniform_int_distribution<> dist_video(0, instance->ip.V - 1);
-        int id_video = dist_video(gen);
+        // 1. Select a random cache to modify
+        std::uniform_int_distribution<> dist_cache(0, instance->ip.C - 1);
+        
+        int id_cache = dist_cache(gen);
 
-        // 2. Randomly decide between Add/Remove (0) and Swap (1)
-        std::uniform_int_distribution<> dist_move_type(0, 1);
-        int move_type = dist_move_type(gen);
+        for(int id_video = 0; id_video < instance->ip.V; id_video++) {
+            if (instance->cache_affectation[id_video][id_cache]) {
+                double coin_toss = coin(gen);
 
-        if (move_type == 0) { // Add/Remove
-            // Randomly select a cache to modify the video in.
-            std::uniform_int_distribution<> dist_cache(0, instance->ip.C - 1);
-            int id_cache = dist_cache(gen);
-
-            // Apply the change permanently (ruining it)
-            add_remove(instance, id_cache, id_video);
-        } else { // Swap
-            // Randomly select two distinct caches for swapping.
-            std::uniform_int_distribution<> dist_cache_1(0, instance->ip.C - 1);
-            int id_cache1 = dist_cache_1(gen);
-
-            int id_cache2;
-            do {
-                id_cache2 = dist_cache_1(gen);
-            } while (id_cache2 == id_cache1);
-
-            // Apply the swap permanently (ruining it)
-            swap(instance, id_cache1, id_video, id_cache2);
+                if (coin_toss < 1.5) {
+                    add_remove(instance, id_cache, id_video);
+                }
+            }
         }
     }
     return instance->score;
@@ -234,7 +223,7 @@ long long ruin(InstanceData* instance, int num_moves) {
 /// @param num_moves
 /// @param num_ls_iterations
 /// @return score of the best solution, which is left in instance
-long long ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_moves, int num_ls_iterations) {
+long long ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_moves) {
     InstanceData best_solution = deepCopyInstanceData(instance);
 
     for(int rr_i = 0; rr_i < num_rr_iterations; rr_i++) {
@@ -242,7 +231,7 @@ long long ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_m
 
         ruin(&current_instance, num_moves);
 
-        local_search(&current_instance, num_ls_iterations);
+        greedy_density(&current_instance);
 
         // Keep the better one in best_solution, then free the other
         if (current_instance.score > best_solution.score) {

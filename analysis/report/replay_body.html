@@ -1,0 +1,1010 @@
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">HashCode 2017 · Streaming videos · companion to the instance atlas</div>
+  <h1>Streaming Cache Replay</h1>
+  <p class="lede">First the problem itself on the 5-video example file, where you place the videos. Then a step-by-step replay of the team's greedy and the knapsack re-optimisation on six real instances, drawn from the actual execution traces.</p>
+  <nav class="jump" aria-label="Sections"><a href="#problem">The problem</a><a href="#replay">Replay an instance</a></nav>
+</header>
+
+<section id="problem">
+  <div class="sec-head">
+    <div class="eyebrow">The problem</div>
+    <h2>Put videos in caches so requests travel less</h2>
+    <p>Every video lives in the data center. Cache servers sit closer to the users but hold only X MB each. You choose which videos to copy into which caches; each request is then served from the fastest place that has its video.</p>
+  </div>
+  <div class="rules">
+    <div class="rule"><div class="k">Videos</div><p>V videos, each with a size in MB. The data center holds all of them.</p></div>
+    <div class="rule"><div class="k">Caches</div><p>C cache servers, all with the same capacity X MB. They start empty.</p></div>
+    <div class="rule"><div class="k">Endpoints</div><p>Groups of users. Each has a latency to the data center and to some of the caches, never slower than the data center.</p></div>
+    <div class="rule"><div class="k">Requests</div><p>“Endpoint e asks for video v, n times.” Served by the fastest connected cache holding v, otherwise by the data center.</p></div>
+  </div>
+  <div class="formula" aria-label="Score formula">score = ⌊ 1000 × Σ<sub>requests</sub> n × (latency<sub>data center</sub> − latency<sub>served</sub>) ÷ Σ<sub>requests</sub> n ⌋ &nbsp;&nbsp;= average milliseconds saved per request, × 1000</div>
+
+  <h3>Try it on <code>instances/example.in</code></h3>
+  <div class="play">
+    <div class="panel diagram"><svg id="exSvg" viewBox="0 0 600 392" role="img" aria-label="Example network: data center, three caches and two endpoints"></svg></div>
+    <div class="panel">
+      <div class="scoreline"><span class="big" id="exScore">0</span><span class="sub" id="exScoreSub"></span></div>
+      <table class="matrix-tbl" id="exMatrix"></table>
+      <div class="btns">
+        <button class="primary" id="exGreedy" type="button">Run the greedy</button>
+        <button id="exBest" type="button">Show the best placement</button>
+        <button id="exClear" type="button">Empty the caches</button>
+      </div>
+      <div class="msg" id="exMsg" role="status" aria-live="polite">Tick a box to copy a video into a cache.</div>
+    </div>
+  </div>
+  <div class="tbl-wrap"><table class="req" id="exReq"></table></div>
+  <div class="edge-cases" id="exEdge"></div>
+</section>
+
+<section id="replay">
+  <div class="sec-head">
+    <div class="eyebrow">Replay</div>
+    <h2>Watch the greedy fill the caches</h2>
+    <p>Phase 1 is <code>greedy_density</code> exactly as the team runs it: same rule, same tie-breaking, verified placement by placement against its output. Phase 2 is the knapsack re-optimisation from the atlas, which rewrites one cache at a time. On me_at_the_zoo a third phase moves to the proven optimum.</p>
+  </div>
+  <div class="picker" id="picker" role="group" aria-label="Instance"></div>
+  <div class="inst-info">
+    <div><div id="instChips"></div><p id="instText"></p></div>
+    <div class="facts" id="instFacts"></div>
+  </div>
+
+  <div class="panel transport">
+    <div class="tbtns">
+      <button type="button" id="tRestart" aria-label="Back to empty caches"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+      <button type="button" id="tBack" aria-label="Previous step"><svg viewBox="0 0 16 16"><path d="M11 2v12L3 8z"/><path d="M12 2h2v12h-2z"/></svg></button>
+      <button type="button" id="tPlay" class="primary" aria-label="Play"><svg viewBox="0 0 16 16" id="tPlayIcon"><path d="M4 2v12l10-6z"/></svg></button>
+      <button type="button" id="tFwd" aria-label="Next step"><svg viewBox="0 0 16 16"><path d="M5 2v12l8-6z"/><path d="M2 2h2v12H2z"/></svg></button>
+    </div>
+    <div class="scrub">
+      <div class="phasebar" id="phasebar"></div>
+      <input type="range" id="scrub" min="0" max="1" value="0" step="1" aria-label="Step">
+    </div>
+    <div class="right">
+      <label for="speed">Speed</label>
+      <select id="speed">
+        <option value="60">Slow · 60 s per phase</option>
+        <option value="20" selected>Normal · 20 s per phase</option>
+        <option value="6">Fast · 6 s per phase</option>
+      </select>
+      <span class="mono" id="tCount"></span>
+    </div>
+  </div>
+
+  <div class="panel stage">
+    <div class="legend">
+      <span><i class="ramp"></i>placed by the greedy, early → late</span>
+      <span><i class="sw" style="background: var(--s2)"></i>added by the knapsack step</span>
+      <span id="legOpt"><i class="sw" style="background: var(--s3)"></i>added to reach the optimum</span>
+      <span><i class="ring"></i>current step · hovered video's copies</span>
+    </div>
+    <canvas id="stage" tabindex="0" aria-label="Cache contents"></canvas>
+    <div class="note" id="stageNote"></div>
+  </div>
+
+  <div class="readouts">
+    <div class="panel now" aria-live="polite">
+      <div class="phase" id="nowPhase"></div>
+      <h3 id="nowTitle"></h3>
+      <p id="nowText"></p>
+    </div>
+    <div class="panel"><dl class="stats" id="stats"></dl></div>
+    <div class="panel"><h3>Recent steps</h3><ol class="log" id="log"></ol></div>
+  </div>
+
+  <div class="charts">
+    <div class="panel chart"><div class="ttl">Score during the greedy</div><div class="cap" id="capG"></div><svg id="chG" viewBox="0 0 600 210"></svg></div>
+    <div class="panel chart"><div class="ttl">Score during the knapsack step</div><div class="cap" id="capK"></div><svg id="chK" viewBox="0 0 600 210"></svg></div>
+    <div class="panel chart"><div class="ttl">Gain per MB of each greedy pick</div><div class="cap" id="capD">Log scale. It can only go down: each copy lowers the gains that remain, and space only shrinks.</div><svg id="chD" viewBox="0 0 600 210"></svg></div>
+  </div>
+
+  <div class="lower">
+    <div class="panel">
+      <div class="btns" style="justify-content: space-between; align-items: center;">
+        <h3 id="detTitle">Cache 0</h3>
+        <span class="btns"><button type="button" id="detPrev" aria-label="Previous cache">◀</button><button type="button" id="detNext" aria-label="Next cache">▶</button></span>
+      </div>
+      <p class="note" id="detSub">Click a cache in the view above to inspect it.</p>
+      <div class="detail-list"><table id="detTbl"></table></div>
+    </div>
+    <div class="panel net">
+      <h3 id="sideTitle"></h3>
+      <p class="note" id="sideSub"></p>
+      <svg id="side" viewBox="0 0 600 250"></svg>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div><strong>Where the data comes from.</strong> The greedy traces come from a lazy re-implementation of <code>greedy_density</code> using the same density rule and the same tie-breaking (lowest video id, then lowest cache id). On all six instances its final placements match the team's output exactly. The knapsack phase starts from that solution and rewrites each cache optimally with the others fixed, sweep after sweep, until no cache improves. The me_at_the_zoo optimum is the HiGHS MIP solution from the atlas.</div>
+  <div>Scores use the contest formula after merging duplicate request lines. custom_dejavu42 is replayed with the first listed latency for its 41 duplicated links, as the team's code reads them.</div>
+</footer>
+</div>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="data">/*DATA*/</script>
+<script>
+(function () {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const nf = new Intl.NumberFormat("en-US");
+const fmt = (x) => nf.format(Math.round(x));
+const fmt1 = (x) => (Math.abs(x) >= 100 ? fmt(x) : Math.abs(x) >= 0.01 ? x.toFixed(Math.abs(x) >= 10 ? 1 : 2) : x.toPrecision(2));
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+const NS = "http://www.w3.org/2000/svg";
+const sv = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; return e; };
+const cssv = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- tooltip ---------- */
+const tip = $("tip");
+function showTip(x, y, title, lines) {
+  tip.replaceChildren(el("b", {}, title));
+  lines.forEach((l) => tip.append(el("div", {}, l)));
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 14)) + "px";
+  tip.style.top = (y - h - 12 < 8 ? y + 18 : y - h - 12) + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+/* =====================================================================
+   PART 1 · the example, editable
+   ===================================================================== */
+const EX = D.example;
+const ex = { place: Array.from({ length: EX.C }, () => new Set()), hoverReq: -1, timer: null };
+const exTotal = EX.req.reduce((s, r) => s + r[2], 0);
+const exUsed = (place, c) => { let u = 0; for (const v of place[c]) u += EX.size[v]; return u; };
+function exServe(place) {
+  return EX.req.map(([v, e, n], i) => {
+    let saved = 0, c = -1, lat = EX.dc[e];
+    for (const [cc, l] of EX.links[e]) if (place[cc].has(v) && EX.dc[e] - l > saved) { saved = EX.dc[e] - l; c = cc; lat = l; }
+    return { i, v, e, n, c, lat, saved };
+  });
+}
+const exWeighted = (place) => exServe(place).reduce((s, r) => s + r.saved * r.n, 0);
+const exContest = (w) => Math.floor(w * 1000 / exTotal);
+
+function exGreedySteps() {
+  const place = Array.from({ length: EX.C }, () => new Set());
+  const steps = [];
+  for (;;) {
+    const cur = exServe(place);
+    let best = 0, bv = -1, bc = -1, bg = 0;
+    for (let v = 0; v < EX.V; v++) for (let c = 0; c < EX.C; c++) {
+      if (place[c].has(v) || EX.size[v] > EX.X - exUsed(place, c)) continue;
+      let g = 0;
+      cur.forEach((r) => { if (r.v !== v) return; const l = EX.links[r.e].find((p) => p[0] === c); if (l && EX.dc[r.e] - l[1] > r.saved) g += (EX.dc[r.e] - l[1] - r.saved) * r.n; });
+      if (g <= 0) continue;
+      const d = g / EX.size[v];
+      if (d > best) { best = d; bv = v; bc = c; bg = g; }
+    }
+    if (bv < 0) break;
+    place[bc].add(bv);
+    steps.push({ v: bv, c: bc, g: bg, d: best });
+  }
+  return steps;
+}
+function exBest() {
+  // every cache independently takes any subset of the videos that fits
+  const subsets = [];
+  for (let m = 0; m < 1 << EX.V; m++) { let s = 0; for (let v = 0; v < EX.V; v++) if (m >> v & 1) s += EX.size[v]; if (s <= EX.X) subsets.push(m); }
+  let best = -1, bestPick = null, tried = 0;
+  const pick = new Array(EX.C).fill(0);
+  const rec = (c) => {
+    if (c === EX.C) {
+      tried++;
+      const place = pick.map((m) => { const s = new Set(); for (let v = 0; v < EX.V; v++) if (m >> v & 1) s.add(v); return s; });
+      const w = exWeighted(place);
+      // prefer fewer copies on ties so the answer shows only what matters
+      const copies = place.reduce((s, x) => s + x.size, 0);
+      if (w > best || (w === best && copies < bestPick.copies)) { best = w; bestPick = { place, copies }; }
+      return;
+    }
+    for (const m of subsets) { pick[c] = m; rec(c + 1); }
+  };
+  rec(0);
+  return { place: bestPick.place, w: best, tried };
+}
+const EX_BEST = exBest();
+
+function exRenderDiagram() {
+  const svg = $("exSvg");
+  svg.replaceChildren();
+  const served = exServe(ex.place);
+  const W = 600;
+  const cacheX = (c) => 150 + c * (300 / Math.max(1, EX.C - 1));
+  const epX = (e) => EX.E === 1 ? 300 : 220 + e * (250 / Math.max(1, EX.E - 1));
+  const CY = 150, CW = 132, CH = 58, EY = 318, EW = 124, EH = 46;
+  // demand carried by each link
+  const linkLoad = {}, dcLoad = new Array(EX.E).fill(0);
+  served.forEach((r) => { if (r.c >= 0) linkLoad[r.e + ":" + r.c] = (linkLoad[r.e + ":" + r.c] || 0) + r.n; else dcLoad[r.e] += r.n; });
+  const maxLoad = Math.max(1, ...Object.values(linkLoad), ...dcLoad);
+  const hov = ex.hoverReq >= 0 ? served[ex.hoverReq] : null;
+  const g = sv("g");
+  // data center
+  g.append(sv("rect", { x: 225, y: 8, width: 150, height: 48, rx: 8, style: "fill: var(--sunk); stroke: var(--axis)" }));
+  g.append(sv("text", { x: 300, y: 28, "text-anchor": "middle", class: "node-title" }, "Data center"));
+  g.append(sv("text", { x: 300, y: 45, "text-anchor": "middle", class: "lbl" }, "holds all " + EX.V + " videos"));
+  // endpoint → data center links
+  for (let e = 0; e < EX.E; e++) {
+    const x = epX(e), left = x < W / 2;
+    const sx = left ? x - EW / 2 : x + EW / 2, ex2 = left ? 14 : W - 14, tx = left ? 225 : 375, sy = EY + EH / 2;
+    const d = `M${sx},${sy} C${ex2},${sy} ${ex2},32 ${tx},32`;
+    const mx = 0.125 * sx + 0.75 * ex2 + 0.125 * tx, my = 0.5 * sy + 0.5 * 32;
+    const on = dcLoad[e] > 0;
+    const isH = hov && hov.e === e && hov.c < 0;
+    g.append(sv("path", { d, style: `fill: none; stroke: ${isH ? "var(--ink)" : on ? "var(--dc)" : "var(--hair)"}; stroke-width: ${on ? 1.5 + 5 * dcLoad[e] / maxLoad : 1}; opacity: ${hov && !isH ? 0.35 : 1}` }));
+    g.append(sv("rect", { x: mx - 30, y: my - 9, width: 60, height: 16, rx: 3, style: "fill: var(--surface)" }));
+    g.append(sv("text", { x: mx, y: my + 3, "text-anchor": "middle", class: "lbl" }, fmt(EX.dc[e]) + " ms"));
+  }
+  // endpoint → cache links
+  for (let e = 0; e < EX.E; e++) for (const [c, l] of EX.links[e]) {
+    const x1 = epX(e), y1 = EY, x2 = cacheX(c), y2 = CY + CH;
+    const load = linkLoad[e + ":" + c] || 0;
+    const isH = hov && hov.e === e && hov.c === c;
+    g.append(sv("line", { x1, y1, x2, y2, style: `stroke: ${isH ? "var(--ink)" : load ? "var(--s1)" : "var(--axis)"}; stroke-width: ${load ? 1.5 + 5 * load / maxLoad : 1}; opacity: ${hov && !isH ? 0.35 : 1}` }));
+    const mx = x1 + (x2 - x1) * 0.42, my = y1 + (y2 - y1) * 0.42;
+    g.append(sv("rect", { x: mx - 24, y: my - 9, width: 48, height: 16, rx: 3, style: "fill: var(--surface)" }));
+    g.append(sv("text", { x: mx, y: my + 3, "text-anchor": "middle", class: "lbl" }, l + " ms"));
+  }
+  // caches
+  for (let c = 0; c < EX.C; c++) {
+    const x = cacheX(c) - CW / 2, used = exUsed(ex.place, c);
+    g.append(sv("text", { x: x, y: CY - 8, class: "node-title" }, "Cache " + c));
+    g.append(sv("text", { x: x + CW, y: CY - 8, "text-anchor": "end", class: "lbl" }, used + " / " + EX.X + " MB"));
+    g.append(sv("rect", { x, y: CY, width: CW, height: CH, rx: 6, style: "fill: var(--sunk); stroke: var(--axis)" }));
+    let off = 0;
+    [...ex.place[c]].sort((a, b) => a - b).forEach((v) => {
+      const w = (EX.size[v] / EX.X) * (CW - 8);
+      const isH = hov && hov.v === v && hov.c === c;
+      g.append(sv("rect", { x: x + 4 + off, y: CY + 4, width: Math.max(1, w - 2), height: CH - 8, rx: 3, style: `fill: var(--s1); stroke: ${isH ? "var(--ink)" : "none"}; stroke-width: 2` }));
+      if (w > 26) g.append(sv("text", { x: x + 4 + off + w / 2 - 1, y: CY + CH / 2 + 4, "text-anchor": "middle", style: "fill: #fff; font: 600 11.5px var(--mono)" }, "v" + v));
+      off += w;
+    });
+  }
+  // endpoints
+  for (let e = 0; e < EX.E; e++) {
+    const x = epX(e) - EW / 2;
+    g.append(sv("rect", { x, y: EY, width: EW, height: EH, rx: 8, style: "fill: var(--surface); stroke: var(--ink-2)" }));
+    g.append(sv("text", { x: x + EW / 2, y: EY + 19, "text-anchor": "middle", class: "node-title" }, "Endpoint " + e));
+    g.append(sv("text", { x: x + EW / 2, y: EY + 35, "text-anchor": "middle", class: "lbl" }, EX.links[e].length ? EX.links[e].length + " caches linked" : "no cache linked"));
+  }
+  svg.append(g);
+}
+
+function exRenderMatrix() {
+  const t = $("exMatrix");
+  t.replaceChildren();
+  const hr = el("tr"); hr.append(el("th", {}, "Video"));
+  for (let c = 0; c < EX.C; c++) hr.append(el("th", {}, "Cache " + c));
+  hr.append(el("th", {}, "Asked for"));
+  const th = el("thead"); th.append(hr); t.append(th);
+  const tb = el("tbody");
+  const demand = new Array(EX.V).fill(0); EX.req.forEach(([v, e, n]) => { demand[v] += n; });
+  for (let v = 0; v < EX.V; v++) {
+    const tr = el("tr");
+    const td0 = el("td"); td0.append(el("strong", {}, "v" + v), document.createTextNode(" · " + EX.size[v] + " MB")); tr.append(td0);
+    for (let c = 0; c < EX.C; c++) {
+      const td = el("td");
+      const cb = el("input", { type: "checkbox", id: `ex-${v}-${c}`, "aria-label": `Video ${v} in cache ${c}` });
+      cb.checked = ex.place[c].has(v);
+      if (EX.size[v] > EX.X) { cb.disabled = true; cb.title = `${EX.size[v]} MB is more than a cache holds (${EX.X} MB)`; }
+      cb.addEventListener("change", () => exToggle(v, c, cb));
+      td.append(cb); tr.append(td);
+    }
+    tr.append(el("td", { class: "why" }, demand[v] ? fmt(demand[v]) + "×" : "never"));
+    tb.append(tr);
+  }
+  t.append(tb);
+}
+
+function exRenderTable() {
+  const t = $("exReq");
+  t.replaceChildren();
+  const served = exServe(ex.place);
+  const hr = el("tr");
+  ["Video", "From endpoint", "Requests", "Served by", "Latency", "Saved each", "Saved in total"].forEach((h) => hr.append(el("th", {}, h)));
+  const th = el("thead"); th.append(hr); t.append(th);
+  const tb = el("tbody");
+  served.forEach((r) => {
+    const tr = el("tr", { tabindex: "0" });
+    const lines = EX.rawReq.filter(([v, e]) => v === r.v && e === r.e).length;
+    tr.append(el("td", {}, "v" + r.v + " (" + EX.size[r.v] + " MB)"));
+    tr.append(el("td", {}, "Endpoint " + r.e));
+    tr.append(el("td", {}, fmt(r.n) + (lines > 1 ? " (" + lines + " lines merged)" : "")));
+    const td = el("td"); const p = el("span", { class: "pill" }); const i = el("i"); i.style.background = r.c >= 0 ? "var(--s1)" : "var(--dc)";
+    p.append(i, document.createTextNode(r.c >= 0 ? "cache " + r.c : "data center")); td.append(p); tr.append(td);
+    tr.append(el("td", {}, fmt(r.lat) + " ms"));
+    tr.append(el("td", {}, fmt(r.saved) + " ms"));
+    tr.append(el("td", {}, fmt(r.saved * r.n) + " ms"));
+    const on = () => { ex.hoverReq = r.i; exRenderDiagram(); };
+    const off = () => { ex.hoverReq = -1; exRenderDiagram(); };
+    tr.addEventListener("pointerenter", on); tr.addEventListener("pointerleave", off);
+    tr.addEventListener("focus", on); tr.addEventListener("blur", off);
+    tb.append(tr);
+  });
+  t.append(tb);
+  const w = served.reduce((s, r) => s + r.saved * r.n, 0);
+  const tf = el("tfoot");
+  const r1 = el("tr");
+  r1.append(el("td", {}, "Total"), el("td", {}, ""), el("td", {}, fmt(exTotal)), el("td", {}, ""), el("td", {}, ""), el("td", {}, ""), el("td", {}, fmt(w) + " ms"));
+  const r2 = el("tr");
+  const cell = el("td", { colspan: "7" }, `Score = ⌊1000 × ${fmt(w)} ÷ ${fmt(exTotal)}⌋ = ${fmt(exContest(w))}`);
+  cell.style.textAlign = "left"; cell.style.fontFamily = "var(--mono)"; cell.style.fontWeight = "500";
+  r2.append(cell);
+  tf.append(r1, r2); t.append(tf);
+}
+
+function exRender() {
+  exRenderDiagram(); exRenderMatrix(); exRenderTable();
+  const w = exWeighted(ex.place), s = exContest(w);
+  $("exScore").textContent = fmt(s);
+  $("exScoreSub").textContent = s === exContest(EX_BEST.w) ? "points, the best possible" : "points, of " + fmt(exContest(EX_BEST.w)) + " possible";
+}
+function exSay(text, err) { const m = $("exMsg"); m.textContent = text; m.classList.toggle("err", !!err); }
+function exToggle(v, c, cb) {
+  if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
+  if (cb.checked) {
+    const free = EX.X - exUsed(ex.place, c);
+    if (EX.size[v] > free) { cb.checked = false; exSay(`Cache ${c} has ${free} MB free; video ${v} needs ${EX.size[v]} MB.`, true); return; }
+    ex.place[c].add(v);
+    exSay(`Video ${v} copied to cache ${c}.`);
+  } else { ex.place[c].delete(v); exSay(`Video ${v} removed from cache ${c}.`); }
+  exRender();
+}
+$("exClear").addEventListener("click", () => { if (ex.timer) clearTimeout(ex.timer); ex.place = Array.from({ length: EX.C }, () => new Set()); exRender(); exSay("Caches emptied: every request goes to the data center."); });
+$("exBest").addEventListener("click", () => {
+  if (ex.timer) clearTimeout(ex.timer);
+  ex.place = EX_BEST.place.map((s) => new Set(s)); exRender();
+  exSay(`Best placement, found by checking all ${fmt(EX_BEST.tried)} ways to fill the three caches.`);
+});
+$("exGreedy").addEventListener("click", () => {
+  if (ex.timer) clearTimeout(ex.timer);
+  const steps = exGreedySteps();
+  ex.place = Array.from({ length: EX.C }, () => new Set()); exRender();
+  let i = 0;
+  const next = () => {
+    if (i < steps.length) {
+      const s = steps[i++];
+      ex.place[s.c].add(s.v); exRender();
+      exSay(`Step ${i}: video ${s.v} → cache ${s.c}. It saves ${fmt(s.g)} ms in total, ${fmt(s.d)} ms per MB, the best ratio among the pairs that fit.`);
+      ex.timer = setTimeout(next, reduceMotion ? 50 : 1600);
+    } else {
+      exSay(`The greedy stops after ${steps.length} steps: no remaining copy saves anything. Here that is also the best possible score.`);
+      ex.timer = null;
+    }
+  };
+  ex.timer = setTimeout(next, reduceMotion ? 50 : 500);
+});
+(function exEdgeCases() {
+  const host = $("exEdge");
+  const big = EX.size.map((s, v) => [s, v]).filter(([s]) => s > EX.X);
+  const lonely = EX.links.map((l, e) => [l.length, e]).filter(([k]) => k === 0);
+  const dup = {}; EX.rawReq.forEach(([v, e]) => { dup[v + ":" + e] = (dup[v + ":" + e] || 0) + 1; });
+  const dups = Object.entries(dup).filter(([, k]) => k > 1);
+  const add = (title, text) => { const d = el("div"); d.append(el("b", {}, title), document.createTextNode(text)); host.append(d); };
+  big.forEach(([s, v]) => add(`Video ${v} fits nowhere`, `At ${s} MB it is bigger than a cache (${EX.X} MB). Its requests always come from the data center.`));
+  lonely.forEach(([, e]) => add(`Endpoint ${e} has no cache`, `Nothing you place helps its requests: they are always served from the data center, at ${fmt(EX.dc[e])} ms.`));
+  dups.forEach(([k, n]) => { const [v, e] = k.split(":"); add(`Duplicate request lines`, `The file asks for video ${v} from endpoint ${e} on ${n} separate lines. They count as one request with the counts added.`); });
+})();
+exRender();
+
+/* =====================================================================
+   PART 2 · replay
+   ===================================================================== */
+const ORDER = ["me_at_the_zoo", "videos_worth_spreading", "trending_today", "kittens", "custom_dejavu42", "custom_universallambda42"];
+const INFO = {
+  me_at_the_zoo: { chip: "full fidelity", text: "Every video, cache and link, drawn to scale. 51 greedy placements, 3 cache rewrites by the knapsack step, then the switch to the proven optimum. The network panel shows which links carry the served requests." },
+  videos_worth_spreading: { chip: "every placement", text: "100 caches as columns, all 6,110 placements drawn to scale. The few very popular videos go first and get copied to many caches; the long tail fills what is left." },
+  trending_today: { chip: "every placement", text: "All caches are equivalent here, so the problem is bin packing. Watch the end of the greedy: the last videos are the largest, and the free space is split into pieces too small to take them." },
+  kittens: { chip: "compressed", text: "500 caches as thin columns in rows. All 10,815 placements are drawn, but a video is only a few pixels wide: hover a block to light up every copy of that video, and click a cache to list its contents below." },
+  custom_dejavu42: { chip: "1 cell = 1 MB", text: "Each cache is a 50 × 40 grid of 1 MB cells. Replayed as the team's code reads the 41 duplicated links (first listed latency), so its scores are lower than in the atlas, which uses the best link." },
+  custom_universallambda42: { chip: "1 cell = 1 MB", text: "Each cache is a 50 × 40 grid of 1 MB cells, 40,000 in total. Watch 1 MB videos flood every cache, copied again and again so that each even endpoint can reach one." },
+};
+
+const R = { name: null, I: null, Ng: 0, N: 0, cum: null, rew: [], phases: [], t: 0, st: null, playing: false, speedSec: 20, hoverV: -1, selC: 0, L: null, colors: null, zoo: null };
+const contest = (w) => Math.floor(w * 1000 / R.I.total);
+const scoreAt = (t) => (t <= R.Ng ? R.cum[t] : R.rew[t - R.Ng - 1].w);
+const ptsPerMB = (i) => { const j = (i - 1) * 3; return R.I.greedy[j + 2] * 1000 / R.I.total / R.I.size[R.I.greedy[j]]; };
+
+/* zoo: full instance for exact scoring and the network panel */
+function zooScorer(F) {
+  const byV = Array.from({ length: F.V }, () => []);
+  F.req.forEach(([v, e, n], i) => byV[v].push(i));
+  const latOf = F.links.map((ls) => { const m = new Map(); ls.forEach(([c, l]) => m.set(c, l)); return m; });
+  return {
+    F, latOf,
+    serve(caches) {
+      const has = Array.from({ length: F.C }, (_, c) => new Set(caches[c].map((x) => x.v !== undefined ? x.v : x)));
+      return F.req.map(([v, e, n]) => {
+        let best = 0, bc = -1;
+        for (const [c, l] of F.links[e]) if (has[c].has(v) && F.dc[e] - l > best) { best = F.dc[e] - l; bc = c; }
+        return { v, e, n, c: bc, saved: best };
+      });
+    },
+  };
+}
+
+function buildInstance(name) {
+  const I = D.instances[name];
+  R.name = name; R.I = I;
+  R.Ng = I.greedy.length / 3;
+  R.cum = new Float64Array(R.Ng + 1);
+  for (let i = 0; i < R.Ng; i++) R.cum[i + 1] = R.cum[i] + I.greedy[3 * i + 2];
+  R.rew = I.kca.map(([c, sweep, rem, add, w]) => ({ c, sweep, rem, add, w, kind: "k" }));
+  R.zoo = I.full ? zooScorer(I.full) : null;
+  if (I.optimum) {
+    // state after the knapsack phase, then one pseudo-step per cache that differs from the MIP optimum
+    const cur = Array.from({ length: I.C }, () => new Set());
+    for (let i = 0; i < R.Ng; i++) cur[I.greedy[3 * i + 1]].add(I.greedy[3 * i]);
+    R.rew.forEach((r) => { r.rem.forEach((v) => cur[r.c].delete(v)); r.add.forEach((v) => cur[r.c].add(v)); });
+    for (let c = 0; c < I.C; c++) {
+      const opt = new Set(I.optimum[c] || []);
+      const rem = [...cur[c]].filter((v) => !opt.has(v)).sort((a, b) => a - b);
+      const add = [...opt].filter((v) => !cur[c].has(v)).sort((a, b) => a - b);
+      if (!rem.length && !add.length) continue;
+      rem.forEach((v) => cur[c].delete(v)); add.forEach((v) => cur[c].add(v));
+      const w = R.zoo.serve(cur.map((s) => [...s])).reduce((s, r) => s + r.saved * r.n, 0);
+      R.rew.push({ c, sweep: -1, rem, add, w, kind: "o" });
+    }
+  }
+  R.N = R.Ng + R.rew.length;
+  const nk = I.kca.length;
+  R.phases = [{ name: "Greedy", from: 0, to: R.Ng }, { name: "Knapsack re-opt", from: R.Ng, to: R.Ng + nk }];
+  if (R.N > R.Ng + nk) R.phases.push({ name: "Proven optimum", from: R.Ng + nk, to: R.N });
+  R.st = null; R.hoverV = -1; R.selC = 0;
+}
+
+/* ---------- state replay ---------- */
+function freshState() {
+  const I = R.I;
+  return { t: 0, caches: Array.from({ length: I.C }, () => []), used: new Float64Array(I.C), copies: new Int32Array(I.V), distinct: 0, placed: 0 };
+}
+function addEntry(S, c, v, s, k) { S.caches[c].push({ v, s, k }); S.used[c] += R.I.size[v]; if (S.copies[v]++ === 0) S.distinct++; S.placed++; }
+function remEntry(S, c, v) {
+  const a = S.caches[c]; const i = a.findIndex((x) => x.v === v);
+  if (i < 0) return;
+  a.splice(i, 1); S.used[c] -= R.I.size[v]; if (--S.copies[v] === 0) S.distinct--; S.placed--;
+}
+function applyStep(S, i) {
+  if (i <= R.Ng) { const j = (i - 1) * 3; addEntry(S, R.I.greedy[j + 1], R.I.greedy[j], i, 0); }
+  else { const r = R.rew[i - R.Ng - 1]; r.rem.forEach((v) => remEntry(S, r.c, v)); r.add.forEach((v) => addEntry(S, r.c, v, i, r.kind === "o" ? 2 : 1)); }
+  S.t = i;
+}
+function stateAt(t) {
+  if (!R.st || t < R.st.t) R.st = freshState();
+  while (R.st.t < t) applyStep(R.st, R.st.t + 1);
+  return R.st;
+}
+
+/* ---------- colours ---------- */
+function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map((x) => x + x).join(""); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function readColors() {
+  const stops = [0, 1, 2, 3, 4].map((i) => hexToRgb(cssv("--ramp" + i)));
+  const lut = [];
+  for (let k = 0; k < 64; k++) {
+    const u = k / 63 * 4, i = Math.min(3, Math.floor(u)), f = u - i;
+    const c = stops[i].map((x, j) => Math.round(x + (stops[i + 1][j] - x) * f));
+    const lum = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+    lut.push({ css: `rgb(${c[0]},${c[1]},${c[2]})`, dark: lum < 0.5 });
+  }
+  R.colors = { lut, s2: cssv("--s2"), s3: cssv("--s3"), ink: cssv("--ink"), sunk: cssv("--sunk"), axis: cssv("--axis"), muted: cssv("--muted"), accent: cssv("--accent"), surface: cssv("--surface"), ink2: cssv("--ink-2") };
+}
+function entryColor(x) {
+  if (x.k === 1) return { css: R.colors.s2, dark: true };
+  if (x.k === 2) return { css: R.colors.s3, dark: true };
+  return R.colors.lut[Math.min(63, Math.floor((x.s - 1) / Math.max(1, R.Ng) * 64))];
+}
+
+/* ---------- stage layout + drawing ---------- */
+const canvas = $("stage"), ctx = canvas.getContext("2d");
+function computeLayout() {
+  const I = R.I, C = I.C, X = I.X;
+  const W0 = Math.max(280, canvas.parentElement.clientWidth - 28), M = 3, W = W0 - 2 * M;
+  const waffle = C <= 24 && X > 100 && X <= 2500;
+  const L = { W, waffle, pos: [] };
+  if (waffle) {
+    const cols = 50, rows = Math.ceil(X / cols), gap = 14, labelH = 18;
+    let best = null;
+    for (let per = 1; per <= C; per++) {
+      const nrows = Math.ceil(C / per);
+      const cell = Math.min((W - gap * (per - 1)) / per / cols, (460 - nrows * (labelH + gap)) / nrows / rows);
+      if (!best || cell > best.cell + 1e-9) best = { per, nrows, cell };
+    }
+    const cell = Math.max(1, best.cell), pw = cols * cell, ph = rows * cell;
+    const off = (W - (best.per * pw + (best.per - 1) * gap)) / 2;
+    for (let c = 0; c < C; c++) {
+      const col = c % best.per, row = Math.floor(c / best.per);
+      L.pos.push({ x: off + col * (pw + gap), y: row * (ph + labelH + gap) + labelH, w: pw, h: ph });
+    }
+    Object.assign(L, { cols, rows, cell, labelH, H: best.nrows * (ph + labelH + gap) - gap + 2 });
+    L.pos.forEach((p) => { p.x += M; p.y += M; }); L.H += 2 * M;
+  } else {
+    const minW = C <= 12 ? 44 : C <= 24 ? 24 : C <= 120 ? 6 : 4, gap = C <= 24 ? 10 : 2;
+    const perMax = Math.max(1, Math.floor((W + gap) / (minW + gap)));
+    const nrows = Math.ceil(C / perMax), per = Math.ceil(C / nrows);
+    const colW = (W - gap * (per - 1)) / per;
+    const rowH = C <= 24 ? 250 : C <= 120 ? 220 : 88, labelH = C <= 24 ? 20 : 0, rgap = C <= 24 ? 0 : 10;
+    for (let c = 0; c < C; c++) {
+      const col = c % per, row = Math.floor(c / per);
+      L.pos.push({ x: col * (colW + gap), y: row * (rowH + labelH + rgap), w: colW, h: rowH });
+    }
+    Object.assign(L, { labelH, H: nrows * (rowH + labelH + rgap) - rgap });
+    L.pos.forEach((p) => { p.x += M; p.y += M; }); L.H += 2 * M;
+  }
+  L.W = W0; R.L = L;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.height = L.H + "px";
+  canvas.width = Math.round(L.W * dpr); canvas.height = Math.round(L.H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawStage() {
+  const I = R.I, L = R.L, S = stateAt(R.t), col = R.colors, X = I.X;
+  ctx.clearRect(0, 0, L.W, L.H);
+  const curStep = R.t, curRew = R.t > R.Ng ? R.rew[R.t - R.Ng - 1] : null;
+  const labels = !L.waffle && L.pos[0].w >= 34;
+  for (let c = 0; c < I.C; c++) {
+    const p = L.pos[c];
+    ctx.fillStyle = col.sunk; ctx.fillRect(p.x, p.y, p.w, p.h);
+    const entries = S.caches[c];
+    if (L.waffle) {
+      const cell = L.cell, g = cell >= 3 ? 0.6 : 0;
+      let idx = 0;
+      for (const x of entries) {
+        const cc = entryColor(x); ctx.fillStyle = cc.css;
+        const sz = I.size[x.v];
+        for (let k = 0; k < sz; k++, idx++) {
+          const cx = idx % L.cols, cy = L.rows - 1 - Math.floor(idx / L.cols);
+          ctx.fillRect(p.x + cx * cell, p.y + cy * cell, cell - g, cell - g);
+        }
+      }
+      ctx.fillStyle = col.ink2; ctx.font = '500 11px "IBM Plex Mono", monospace'; ctx.textBaseline = "alphabetic";
+      ctx.fillText("C" + c, p.x, p.y - 5);
+      ctx.fillStyle = col.muted; ctx.textAlign = "right";
+      ctx.fillText(Math.round(S.used[c]) + "/" + X, p.x + p.w, p.y - 5); ctx.textAlign = "left";
+    } else {
+      let off = 0;
+      for (const x of entries) {
+        const sz = I.size[x.v], h = sz / X * p.h, y = p.y + p.h - off - h;
+        const cc = entryColor(x); ctx.fillStyle = cc.css;
+        ctx.fillRect(p.x, y + (h > 3 ? 1 : 0), p.w, Math.max(0.6, h - (h > 3 ? 1 : 0)));
+        if (labels && h >= 14) {
+          ctx.fillStyle = cc.dark ? "#fff" : "#131722"; ctx.font = '500 10px "IBM Plex Mono", monospace'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText("v" + x.v, p.x + p.w / 2, y + h / 2 + 0.5); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+        }
+        off += h;
+      }
+      if (L.labelH) {
+        ctx.fillStyle = col.ink2; ctx.font = '500 11px "IBM Plex Mono", monospace'; ctx.textAlign = "center";
+        ctx.fillText("C" + c + (p.w >= 60 ? " · " + Math.round(S.used[c] / X * 100) + "%" : ""), p.x + p.w / 2, p.y + p.h + 14); ctx.textAlign = "left";
+      }
+    }
+  }
+  // highlights: hovered video copies, current step, rewritten cache, selected cache
+  const outline = (c, pred, color, lw) => {
+    const p = L.pos[c], entries = S.caches[c];
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    if (L.waffle) {
+      let idx = 0;
+      for (const x of entries) {
+        const sz = I.size[x.v];
+        if (pred(x)) {
+          // outline each row run of this entry
+          let k = 0;
+          while (k < sz) {
+            const i0 = idx + k, cx = i0 % L.cols, cy = L.rows - 1 - Math.floor(i0 / L.cols);
+            const run = Math.min(sz - k, L.cols - cx);
+            ctx.strokeRect(p.x + cx * L.cell - lw / 2, p.y + cy * L.cell - lw / 2, run * L.cell + lw - 0.6, L.cell + lw - 0.6);
+            k += run;
+          }
+        }
+        idx += sz;
+      }
+    } else {
+      let off = 0;
+      for (const x of entries) {
+        const h = I.size[x.v] / X * p.h, y = p.y + p.h - off - h;
+        if (pred(x)) ctx.strokeRect(p.x - lw / 2 + 0.5, y + lw / 2 - 0.5, p.w + lw - 1, Math.max(2, h - lw + 1));
+        off += h;
+      }
+    }
+  };
+  if (R.hoverV >= 0) for (let c = 0; c < I.C; c++) if (S.caches[c].some((x) => x.v === R.hoverV)) outline(c, (x) => x.v === R.hoverV, col.ink, 1.5);
+  if (curStep > 0 && curStep <= R.Ng) { const c = I.greedy[(curStep - 1) * 3 + 1]; outline(c, (x) => x.s === curStep, col.ink, 2.5); }
+  if (curRew) {
+    const p = L.pos[curRew.c]; ctx.strokeStyle = curRew.kind === "o" ? col.s3 : col.s2; ctx.lineWidth = 2;
+    ctx.strokeRect(p.x - 2, p.y - 2, p.w + 4, p.h + 4);
+  }
+  if (R.selC >= 0) { const p = L.pos[R.selC]; ctx.strokeStyle = col.accent; ctx.lineWidth = 1.5; ctx.strokeRect(p.x - 1, p.y - 1, p.w + 2, p.h + 2); }
+}
+
+/* ---------- stage hit testing ---------- */
+function hitStage(ev) {
+  const r = canvas.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  const L = R.L, I = R.I, S = stateAt(R.t);
+  for (let c = 0; c < I.C; c++) {
+    const p = L.pos[c];
+    if (x < p.x - 1 || x > p.x + p.w + 1 || y < p.y - 1 || y > p.y + p.h + 1) continue;
+    let mb;
+    if (L.waffle) {
+      const cx = Math.min(L.cols - 1, Math.max(0, Math.floor((x - p.x) / L.cell))), cy = Math.min(L.rows - 1, Math.max(0, Math.floor((y - p.y) / L.cell)));
+      mb = (L.rows - 1 - cy) * L.cols + cx + 0.5;
+    } else mb = (p.y + p.h - y) / p.h * I.X;
+    let acc = 0;
+    for (const e of S.caches[c]) { acc += I.size[e.v]; if (mb <= acc) return { c, e }; }
+    return { c, e: null };
+  }
+  return null;
+}
+function describeOrigin(e) {
+  if (e.k === 0) return "placed by the greedy at step " + fmt(e.s);
+  const r = R.rew[e.s - R.Ng - 1];
+  return e.k === 1 ? "added by the knapsack step (sweep " + (r.sweep + 1) + ")" : "added to reach the optimum";
+}
+canvas.addEventListener("pointermove", (ev) => {
+  const h = hitStage(ev);
+  const nv = h && h.e ? h.e.v : -1;
+  if (nv !== R.hoverV) { R.hoverV = nv; drawStage(); }
+  if (!h) { hideTip(); return; }
+  const I = R.I, S = stateAt(R.t);
+  if (h.e) {
+    const v = h.e.v;
+    showTip(ev.clientX, ev.clientY, `Video ${v} · ${I.size[v]} MB`, [
+      `requested ${fmt(I.pop[v])} times from ${I.nep[v]} endpoint${I.nep[v] === 1 ? "" : "s"}`,
+      `in ${S.copies[v]} cache${S.copies[v] === 1 ? "" : "s"} right now`,
+      describeOrigin(h.e),
+      `cache ${h.c}: ${fmt(S.used[h.c])} of ${fmt(I.X)} MB used`,
+    ]);
+  } else showTip(ev.clientX, ev.clientY, `Cache ${h.c}`, [`${fmt(S.used[h.c])} of ${fmt(I.X)} MB used`, `${fmt(I.X - S.used[h.c])} MB free`, `${S.caches[h.c].length} videos`]);
+});
+canvas.addEventListener("pointerleave", () => { hideTip(); if (R.hoverV !== -1) { R.hoverV = -1; drawStage(); } });
+canvas.addEventListener("click", (ev) => { const h = hitStage(ev); if (h) { R.selC = h.c; drawStage(); renderDetail(); } });
+canvas.addEventListener("keydown", (ev) => {
+  if (ev.key === "ArrowRight") { selectCache(R.selC + 1); ev.preventDefault(); }
+  if (ev.key === "ArrowLeft") { selectCache(R.selC - 1); ev.preventDefault(); }
+});
+function selectCache(c) { R.selC = (c + R.I.C) % R.I.C; drawStage(); renderDetail(); }
+$("detPrev").addEventListener("click", () => selectCache(R.selC - 1));
+$("detNext").addEventListener("click", () => selectCache(R.selC + 1));
+
+/* ---------- charts ---------- */
+const CH = { W: 600, H: 210, l: 66, r: 14, t: 14, b: 26 };
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= n) || 10 * mag;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v);
+  return out;
+}
+const trimZeros = (s) => (s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s);
+const kfmt = (v) => (Math.abs(v) >= 1e6 ? trimZeros((v / 1e6).toFixed(2)) + "M" : Math.abs(v) >= 1e4 ? fmt(v / 1e3) + "k" : fmt(v));
+
+function lineChart(svg, cfg) {
+  // cfg: n (x max), xOf(i) value, ys(i) → y value, yLo, yHi, log, step (bool), bound, marker(i|null), onPick(i), tipOf(i), xLabel, vlines
+  svg.replaceChildren();
+  const { W, H, l, r, t, b } = CH;
+  const pw = W - l - r, ph = H - t - b;
+  const xs = (i) => l + (cfg.n ? i / cfg.n : 0) * pw;
+  const tr = cfg.log ? (v) => Math.log10(Math.max(v, 1e-12)) : (v) => v;
+  const lo = tr(cfg.yLo), hi = tr(cfg.yHi);
+  const ys = (v) => t + ph - (tr(v) - lo) / (hi - lo || 1) * ph;
+  // grid
+  let ticks;
+  if (cfg.log) { ticks = []; for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) ticks.push(Math.pow(10, e)); if (ticks.length < 2) ticks = [cfg.yLo, cfg.yHi]; }
+  else ticks = niceTicks(cfg.yLo, cfg.yHi, 4);
+  ticks.forEach((v) => {
+    svg.append(sv("line", { x1: l, x2: W - r, y1: ys(v), y2: ys(v), class: "grid" }));
+    svg.append(sv("text", { x: l - 6, y: ys(v) + 3.5, "text-anchor": "end", class: "axis-text" }, cfg.log ? (v >= 1 ? kfmt(v) : v.toPrecision(1)) : (cfg.tickFmt || kfmt)(v)));
+  });
+  svg.append(sv("line", { x1: l, x2: W - r, y1: t + ph, y2: t + ph, class: "base" }));
+  svg.append(sv("text", { x: l, y: H - 6, class: "axis-text" }, "0"));
+  svg.append(sv("text", { x: W - r, y: H - 6, "text-anchor": "end", class: "axis-text" }, fmt(cfg.n) + " " + cfg.xLabel));
+  let lastLab = -1e9;
+  (cfg.vlines || []).forEach((vl) => {
+    svg.append(sv("line", { x1: xs(vl.i), x2: xs(vl.i), y1: t, y2: t + ph, class: "grid" }));
+    if (vl.label && xs(vl.i) - lastLab >= 52) { svg.append(sv("text", { x: xs(vl.i) + 3, y: t + 9, class: "axis-text" }, vl.label)); lastLab = xs(vl.i); }
+  });
+  if (cfg.bound != null && cfg.bound <= cfg.yHi && cfg.bound >= cfg.yLo) {
+    svg.append(sv("line", { x1: l, x2: W - r, y1: ys(cfg.bound), y2: ys(cfg.bound), style: "stroke: var(--ink-2); stroke-width: 1" }));
+    svg.append(sv("text", { x: W - r, y: ys(cfg.bound) - 5, "text-anchor": "end", class: "axis-text", style: "fill: var(--ink-2)" }, cfg.boundLabel));
+  }
+  // series (sampled)
+  const m = Math.min(cfg.n, 700), pts = [];
+  for (let k = 0; k <= m; k++) {
+    const i = cfg.n ? Math.round(k * cfg.n / m) : 0;
+    const y = ys(cfg.ys(i));
+    if (cfg.step && pts.length) pts.push([xs(i), pts[pts.length - 1][1]]);
+    pts.push([xs(i), y]);
+  }
+  const d = pts.map((p, k) => (k ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
+  if (!cfg.log) svg.append(sv("path", { d: d + `L${xs(cfg.n)},${t + ph}L${xs(0)},${t + ph}Z`, style: "fill: var(--s1); fill-opacity: .1; stroke: none" }));
+  svg.append(sv("path", { d, style: "fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round" }));
+  // marker + crosshair
+  const mk = sv("g");
+  svg.append(mk);
+  const cross = sv("line", { y1: t, y2: t + ph, style: "stroke: var(--muted); stroke-width: 1", opacity: 0 });
+  svg.append(cross);
+  const hit = sv("rect", { x: l, y: t, width: pw, height: ph, style: "fill: transparent" });
+  svg.append(hit);
+  const pick = (ev) => { const bb = svg.getBoundingClientRect(); const u = ((ev.clientX - bb.left) / bb.width * W - l) / pw; return Math.max(0, Math.min(cfg.n, Math.round(u * cfg.n))); };
+  hit.addEventListener("pointermove", (ev) => { const i = pick(ev); cross.setAttribute("x1", xs(i)); cross.setAttribute("x2", xs(i)); cross.setAttribute("opacity", 1); const tt = cfg.tipOf(i); showTip(ev.clientX, ev.clientY, tt[0], tt.slice(1)); });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("opacity", 0); hideTip(); });
+  hit.addEventListener("click", (ev) => cfg.onPick(pick(ev)));
+  return { setMarker(i) {
+    mk.replaceChildren();
+    if (i == null) return;
+    const x = xs(i), y = ys(cfg.ys(i));
+    mk.append(sv("line", { x1: x, x2: x, y1: t, y2: t + ph, style: "stroke: var(--s2); stroke-width: 1" }));
+    mk.append(sv("circle", { cx: x, cy: y, r: 4.5, style: "fill: var(--s2); stroke: var(--surface); stroke-width: 2" }));
+  } };
+}
+
+let charts = {};
+function buildCharts() {
+  const I = R.I, Ng = R.Ng, nk = R.N - R.Ng;
+  const g0 = contest(R.cum[Ng]);
+  // greedy score
+  const yHiG = Math.max(I.bound, g0) * 1.04;
+  $("capG").textContent = `From 0 to ${fmt(g0)} points in ${fmt(Ng)} placements. Line: ${I.boundKind} ${fmt(I.bound)}.`;
+  charts.g = lineChart($("chG"), {
+    n: Ng, ys: (i) => contest(R.cum[i]), yLo: 0, yHi: yHiG, bound: I.bound, boundLabel: I.boundKind + " " + fmt(I.bound), xLabel: "placements",
+    onPick: (i) => seek(i), tipOf: (i) => ["Placement " + fmt(i), fmt(contest(R.cum[i])) + " points", (100 * contest(R.cum[i]) / I.bound).toFixed(2) + "% of the " + I.boundKind],
+  });
+  // knapsack score
+  const kScores = [g0].concat(R.rew.map((r) => contest(r.w)));
+  const kmin = Math.min(...kScores), kmax = Math.max(...kScores);
+  const pad = Math.max(3, (kmax - kmin) * 0.12);
+  const yLoK = kmin - pad, yHiK = Math.max(kmax + pad, I.bound <= kmax + (kmax - kmin + pad) * 0.6 ? I.bound + pad : kmax + pad);
+  const sweeps = [];
+  R.rew.forEach((r, j) => { if (r.kind === "k" && (j === 0 || R.rew[j - 1].sweep !== r.sweep)) sweeps.push({ i: j, label: sweeps.length < 12 && nk < 5000 ? "sweep " + (r.sweep + 1) : "" }); if (r.kind === "o" && (j === 0 || R.rew[j - 1].kind !== "o")) sweeps.push({ i: j, label: "optimum" }); });
+  const fin = kScores[kScores.length - 1];
+  $("capK").textContent = nk ? `From ${fmt(g0)} to ${fmt(fin)} (${fin >= g0 ? "+" : ""}${fmt(fin - g0)} points) over ${fmt(nk)} cache rewrites.` + (I.bound > yHiK ? ` The ${I.boundKind} (${fmt(I.bound)}) is ${((I.bound / fin - 1) * 100).toFixed(2)}% higher, above this range.` : "") : "No cache could be improved.";
+  charts.k = lineChart($("chK"), {
+    n: Math.max(1, nk), ys: (i) => kScores[Math.min(i, kScores.length - 1)], yLo: yLoK, yHi: yHiK, step: true, tickFmt: fmt, bound: I.bound, boundLabel: I.boundKind + " " + fmt(I.bound), xLabel: "rewrites", vlines: sweeps,
+    onPick: (i) => seek(R.Ng + Math.min(i, nk)), tipOf: (i) => { const j = Math.min(i, nk); return [j ? "Rewrite " + j + (R.rew[j - 1].kind === "o" ? " (optimum)" : " · sweep " + (R.rew[j - 1].sweep + 1)) : "End of the greedy", fmt(kScores[j]) + " points"]; },
+  });
+  // density
+  const dens = (i) => ptsPerMB(Math.max(1, i));
+  let dlo = Infinity, dhi = 0; for (let i = 1; i <= Ng; i++) { const d = ptsPerMB(i); if (d > 0 && d < dlo) dlo = d; if (d > dhi) dhi = d; }
+  charts.d = lineChart($("chD"), {
+    n: Ng, ys: dens, yLo: dlo / 1.3, yHi: dhi * 1.3, log: true, xLabel: "placements",
+    onPick: (i) => seek(Math.max(1, i)), tipOf: (i) => { const s = Math.max(1, i), j = (s - 1) * 3; return ["Placement " + fmt(s), fmt1(ptsPerMB(s)) + " points per MB", "video " + I.greedy[j] + " (" + I.size[I.greedy[j]] + " MB) → cache " + I.greedy[j + 1]]; },
+  });
+}
+function updateChartMarkers() {
+  const t = R.t;
+  charts.g.setMarker(Math.min(t, R.Ng));
+  charts.k.setMarker(t >= R.Ng ? t - R.Ng : null);
+  charts.d.setMarker(t >= 1 && t <= R.Ng ? t : null);
+}
+
+/* ---------- readouts ---------- */
+function stepText(i, short) {
+  const I = R.I;
+  if (i === 0) return short ? "empty caches" : null;
+  if (i <= R.Ng) {
+    const j = (i - 1) * 3, v = I.greedy[j], c = I.greedy[j + 1], pts = I.greedy[j + 2] * 1000 / I.total;
+    return short ? `#${fmt(i)} v${v} (${I.size[v]} MB) → C${c} · +${fmt1(pts)}` : { v, c, pts };
+  }
+  const r = R.rew[i - R.Ng - 1];
+  const prev = contest(scoreAt(i - 1)), now = contest(r.w);
+  const list = (a) => a.length ? a.slice(0, 4).map((v) => "v" + v).join(" ") + (a.length > 4 ? " +" + (a.length - 4) : "") : "none";
+  return short ? `${r.kind === "o" ? "opt" : "sw" + (r.sweep + 1)} C${r.c}: −${list(r.rem)} / +${list(r.add)} · ${now - prev >= 0 ? "+" : ""}${fmt(now - prev)}` : r;
+}
+function renderReadouts() {
+  const I = R.I, t = R.t, S = stateAt(t);
+  const ph = R.phases.find((p) => t > p.from && t <= p.to) || R.phases[0];
+  const score = contest(scoreAt(t));
+  let phase = t === 0 ? "Start" : ph.name, title, text;
+  if (t === 0) { title = "Empty caches"; text = "Every request goes to the data center, so the score is 0. Press play to start the greedy."; }
+  else if (t <= R.Ng) {
+    const s = stepText(t), sz = I.size[s.v];
+    title = `Step ${fmt(t)} of ${fmt(R.Ng)}: video ${s.v} → cache ${s.c}`;
+    text = `Video ${s.v} is ${sz} MB and is requested ${fmt(I.pop[s.v])} times from ${I.nep[s.v]} endpoint${I.nep[s.v] === 1 ? "" : "s"}. This copy adds ${fmt1(s.pts)} points, ${fmt1(s.pts / sz)} per MB: the best ratio left among all pairs that still fit. The video is now in ${S.copies[s.v]} cache${S.copies[s.v] === 1 ? "" : "s"}.`;
+    if (t === R.Ng) { phase = "Greedy finished"; text += ` No other copy fits with a positive gain, so the greedy stops at ${fmt(score)} points.` + (R.N > R.Ng ? " Press play to run the knapsack step." : ""); }
+  } else {
+    const r = stepText(t), prev = contest(scoreAt(t - 1));
+    const list = (a) => a.length ? a.map((v) => `v${v} (${I.size[v]} MB)`).slice(0, 8).join(", ") + (a.length > 8 ? ` and ${a.length - 8} more` : "") : "nothing";
+    title = r.kind === "o" ? `Cache ${r.c} switched to its optimal contents` : `Sweep ${r.sweep + 1}: cache ${r.c} rewritten`;
+    text = (r.kind === "o" ? "The proven optimum holds different videos here. " : `The knapsack step re-solved cache ${r.c} exactly, with every other cache fixed. `) + `Out: ${list(r.rem)}. In: ${list(r.add)}. Score ${score - prev >= 0 ? "+" : "−"}${fmt(Math.abs(score - prev))} points.`;
+    if (t === R.N) { text += R.phases.length > 2 ? " This is the proven optimum." : ` No cache can improve on its own any more: the knapsack step ends at ${fmt(score)} points.`; }
+  }
+  $("nowPhase").textContent = phase; $("nowTitle").textContent = title; $("nowText").textContent = text;
+  const st = $("stats"); st.replaceChildren();
+  const fill = S.used.reduce((a, b) => a + b, 0) / (I.C * I.X);
+  [["Score", fmt(score)], ["Below the " + I.boundKind, I.bound ? ((1 - score / I.bound) * 100).toFixed(2) + "%" : "—"], ["Cache space used", (fill * 100).toFixed(2) + "%"],
+   ["Copies placed", fmt(S.placed)], ["Distinct videos", fmt(S.distinct) + " of " + fmt(I.V)], ["Copies per video", S.distinct ? (S.placed / S.distinct).toFixed(2) : "—"], ["Step", fmt(t) + " of " + fmt(R.N)]]
+    .forEach(([k, v]) => st.append(el("dt", {}, k), el("dd", {}, v)));
+  const log = $("log"); log.replaceChildren();
+  for (let i = t; i >= Math.max(0, t - 5); i--) { const li = el("li", i === t ? { class: "cur" } : {}, stepText(i, true)); log.append(li); if (i === 0) break; }
+}
+
+function renderDetail() {
+  const I = R.I, S = stateAt(R.t), c = R.selC, entries = S.caches[c];
+  $("detTitle").textContent = "Cache " + c;
+  $("detSub").textContent = `${fmt(S.used[c])} of ${fmt(I.X)} MB used by ${entries.length} video${entries.length === 1 ? "" : "s"}. Click another cache above, or use ◀ ▶.`;
+  const t = $("detTbl"); t.replaceChildren();
+  const hr = el("tr"); ["Video", "MB", "Requests", "Copies", "Added"].forEach((h) => hr.append(el("th", {}, h)));
+  const th = el("thead"); th.append(hr); t.append(th);
+  const tb = el("tbody");
+  entries.slice(0, 400).forEach((e) => {
+    const tr = el("tr");
+    tr.append(el("td", {}, "v" + e.v), el("td", {}, fmt(I.size[e.v])), el("td", {}, fmt(I.pop[e.v])), el("td", {}, String(S.copies[e.v])),
+      el("td", {}, e.k === 0 ? "greedy #" + fmt(e.s) : e.k === 1 ? "knapsack" : "optimum"));
+    tr.addEventListener("pointerenter", () => { R.hoverV = e.v; drawStage(); });
+    tr.addEventListener("pointerleave", () => { R.hoverV = -1; drawStage(); });
+    tb.append(tr);
+  });
+  if (entries.length > 400) { const tr = el("tr"); tr.append(el("td", { colspan: "5" }, `… and ${entries.length - 400} more`)); tb.append(tr); }
+  t.append(tb);
+}
+
+/* side panel: zoo network, otherwise copies-per-video histogram */
+function renderSide() {
+  const svg = $("side"); svg.replaceChildren();
+  const I = R.I, S = stateAt(R.t);
+  if (R.zoo) {
+    $("sideTitle").textContent = "Which links carry the served requests";
+    $("sideSub").textContent = "Caches on top, endpoints below. Line width is the request count served over that link right now; orange marks the requests that the current step moved onto its cache.";
+    const F = R.zoo.F, served = R.zoo.serve(S.caches);
+    const load = new Map(), epServed = new Array(F.E).fill(0), epTot = new Array(F.E).fill(0);
+    served.forEach((r) => { epTot[r.e] += r.n; if (r.c >= 0) { load.set(r.e + ":" + r.c, (load.get(r.e + ":" + r.c) || 0) + r.n); epServed[r.e] += r.n; } });
+    const maxL = Math.max(1, ...load.values());
+    let hot = null;
+    if (R.t >= 1 && R.t <= R.Ng) { const j = (R.t - 1) * 3; hot = { v: I.greedy[j], c: I.greedy[j + 1] }; }
+    const cx = (c) => 36 + c * (528 / Math.max(1, F.C - 1)), ex_ = (e) => 36 + e * (528 / Math.max(1, F.E - 1));
+    for (let e = 0; e < F.E; e++) for (const [c, l] of F.links[e]) {
+      const ld = load.get(e + ":" + c) || 0;
+      const isHot = hot && hot.c === c && served.some((r) => r.e === e && r.v === hot.v && r.c === c);
+      svg.append(sv("line", { x1: ex_(e), y1: 196, x2: cx(c), y2: 58, style: `stroke: ${isHot ? "var(--s2)" : ld ? "var(--s1)" : "var(--axis)"}; stroke-width: ${ld ? 1 + 6 * ld / maxL : 0.8}; stroke-opacity: ${ld || isHot ? 0.9 : 0.8}` }));
+    }
+    for (let c = 0; c < F.C; c++) {
+      const u = S.used[c] / F.X;
+      const g = sv("g");
+      g.append(sv("rect", { x: cx(c) - 13, y: 22, width: 26, height: 34, rx: 3, style: "fill: var(--sunk); stroke: var(--axis)" }));
+      g.append(sv("rect", { x: cx(c) - 11, y: 54 - 30 * u, width: 22, height: 30 * u, style: "fill: var(--s1)" }));
+      g.append(sv("text", { x: cx(c), y: 14, "text-anchor": "middle" }, "C" + c));
+      g.addEventListener("pointermove", (ev) => showTip(ev.clientX, ev.clientY, "Cache " + c, [fmt(S.used[c]) + " of " + F.X + " MB used", S.caches[c].length + " videos"]));
+      g.addEventListener("pointerleave", hideTip);
+      svg.append(g);
+    }
+    for (let e = 0; e < F.E; e++) {
+      const share = epTot[e] ? epServed[e] / epTot[e] : 0;
+      const g = sv("g");
+      g.append(sv("circle", { cx: ex_(e), cy: 208, r: 11, style: "fill: var(--surface); stroke: var(--ink-2)" }));
+      g.append(sv("path", { d: arcPath(ex_(e), 208, 11, share), style: "fill: var(--s3)" }));
+      g.append(sv("text", { x: ex_(e), y: 236, "text-anchor": "middle" }, "E" + e));
+      g.append(sv("text", { x: ex_(e), y: 248, "text-anchor": "middle" }, Math.round(share * 100) + "%"));
+      g.addEventListener("pointermove", (ev) => showTip(ev.clientX, ev.clientY, "Endpoint " + e, ["data center " + fmt(F.dc[e]) + " ms · " + F.links[e].length + " caches linked", fmt(epServed[e]) + " of " + fmt(epTot[e]) + " requests served by a cache"]));
+      g.addEventListener("pointerleave", hideTip);
+      svg.append(g);
+    }
+  } else {
+    $("sideTitle").textContent = "How many caches hold each placed video";
+    $("sideSub").textContent = "High counts mean the same video is copied to reach different groups of endpoints: a coverage problem rather than a packing one.";
+    const bins = new Array(9).fill(0);
+    for (let v = 0; v < I.V; v++) { const k = S.copies[v]; if (k > 0) bins[Math.min(9, k) - 1]++; }
+    const mx = Math.max(1, ...bins), l = 40, bw = (600 - l - 10) / 9, base = 214, h = 186;
+    niceTicks(0, mx, 3).forEach((v) => { const y = base - v / mx * h; svg.append(sv("line", { x1: l, x2: 590, y1: y, y2: y, class: "grid" })); svg.append(sv("text", { x: l - 6, y: y + 3.5, "text-anchor": "end", class: "axis-text" }, kfmt(v))); });
+    svg.append(sv("line", { x1: l, x2: 590, y1: base, y2: base, class: "base" }));
+    bins.forEach((n, k) => {
+      const bh = n / mx * h, x = l + k * bw + bw * 0.2, w = Math.min(24, bw * 0.6);
+      if (bh > 0) {
+        const rr = Math.min(4, bh);
+        svg.append(sv("path", { d: `M${x},${base}V${base - bh + rr}Q${x},${base - bh} ${x + rr},${base - bh}H${x + w - rr}Q${x + w},${base - bh} ${x + w},${base - bh + rr}V${base}Z`, style: "fill: var(--s1)" }));
+        svg.append(sv("text", { x: x + w / 2, y: base - bh - 5, "text-anchor": "middle", class: "axis-text" }, kfmt(n)));
+      }
+      svg.append(sv("text", { x: x + w / 2, y: base + 16, "text-anchor": "middle", class: "axis-text" }, k === 8 ? "9+" : String(k + 1)));
+      const hit = sv("rect", { x: l + k * bw, y: base - h, width: bw, height: h, style: "fill: transparent" });
+      hit.addEventListener("pointermove", (ev) => showTip(ev.clientX, ev.clientY, (k === 8 ? "9 or more" : k + 1) + (k === 0 ? " copy" : " copies"), [fmt(n) + " videos"]));
+      hit.addEventListener("pointerleave", hideTip);
+      svg.append(hit);
+    });
+    svg.append(sv("text", { x: 590, y: 246, "text-anchor": "end", class: "axis-text" }, "copies per video"));
+  }
+}
+function arcPath(cx, cy, r, f) {
+  if (f <= 0) return "";
+  if (f >= 0.999) return `M${cx - r},${cy}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0Z`;
+  const a = f * 2 * Math.PI - Math.PI / 2, x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
+  return `M${cx},${cy}L${cx},${cy - r}A${r},${r} 0 ${f > 0.5 ? 1 : 0},1 ${x.toFixed(2)},${y.toFixed(2)}Z`;
+}
+
+/* ---------- transport ---------- */
+const scrub = $("scrub");
+function renderPhasebar() {
+  const pb = $("phasebar"); pb.replaceChildren();
+  R.phases.forEach((p, k) => {
+    const s = el("span", {}, p.name);
+    s.style.left = (p.from / R.N * 100) + "%";
+    s.style.width = ((p.to - p.from) / R.N * 100) + "%";
+    pb.append(s);
+  });
+}
+let lastHeavy = 0;
+function seek(t, playing) {
+  R.t = Math.max(0, Math.min(R.N, t));
+  scrub.value = R.t;
+  $("tCount").textContent = fmt(R.t) + " / " + fmt(R.N);
+  drawStage(); updateChartMarkers(); renderReadouts();
+  const now = performance.now();
+  if (!playing || now - lastHeavy > 250) { lastHeavy = now; renderDetail(); renderSide(); }
+}
+let raf = 0, lastTs = 0, acc = 0;
+function setPlaying(on) {
+  R.playing = on;
+  $("tPlay").setAttribute("aria-label", on ? "Pause" : "Play");
+  $("tPlayIcon").innerHTML = on ? '<path d="M3 2h4v12H3zM9 2h4v12H9z"/>' : '<path d="M4 2v12l10-6z"/>';
+  if (on) { lastTs = 0; acc = 0; raf = requestAnimationFrame(tick); } else cancelAnimationFrame(raf);
+}
+function tick(ts) {
+  if (!R.playing) return;
+  const dt = lastTs ? Math.min(100, ts - lastTs) : 16; lastTs = ts;
+  const ph = R.phases.find((p) => R.t >= p.from && R.t < p.to);
+  if (!ph) { setPlaying(false); return; }
+  acc += dt * Math.max(1, ph.to - ph.from) / (R.speedSec * 1000);
+  const n = Math.floor(acc);
+  if (n > 0) {
+    acc -= n;
+    const target = Math.min(R.t + n, ph.to);
+    seek(target, true);
+    if (target === ph.to) { setPlaying(false); seek(target); return; }
+  }
+  raf = requestAnimationFrame(tick);
+}
+$("tPlay").addEventListener("click", () => { if (R.playing) setPlaying(false); else { if (R.t >= R.N) seek(0); setPlaying(true); } });
+$("tRestart").addEventListener("click", () => { setPlaying(false); seek(0); });
+$("tBack").addEventListener("click", () => { setPlaying(false); seek(R.t - 1); });
+$("tFwd").addEventListener("click", () => { setPlaying(false); seek(R.t + 1); });
+scrub.addEventListener("input", () => { setPlaying(false); seek(+scrub.value); });
+$("speed").addEventListener("change", () => { R.speedSec = +$("speed").value; });
+
+/* ---------- instance picker ---------- */
+function loadInstance(name) {
+  setPlaying(false);
+  buildInstance(name);
+  document.querySelectorAll("#picker button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.n === name ? "true" : "false"));
+  const I = R.I, info = INFO[name];
+  const chips = $("instChips"); chips.replaceChildren(el("span", { class: "chip" }, info.chip));
+  if (name.startsWith("custom_")) chips.append(el("span", { class: "chip" }, "team generator"));
+  $("instText").textContent = info.text;
+  $("instFacts").replaceChildren();
+  [`V ${fmt(I.V)} videos · E ${fmt(I.E)} endpoints`, `C ${fmt(I.C)} caches × X ${fmt(I.X)} MB`, `${fmt(I.R)} distinct requests`, `${fmt(R.Ng)} placements · ${fmt(I.kca.length)} rewrites`].forEach((s) => $("instFacts").append(el("div", {}, s)));
+  $("legOpt").hidden = !I.optimum;
+  scrub.max = R.N;
+  renderPhasebar();
+  computeLayout();
+  $("stageNote").textContent = R.L.waffle ? `One cell is 1 MB; cells fill from the bottom-left in placement order. Each cache holds ${fmt(I.X)} MB.`
+    : `Each column is one cache of ${fmt(I.X)} MB, filled from the bottom in placement order; block height is the video's size.` + (I.C > 120 ? ` ${fmt(I.C)} caches are wrapped into rows.` : "");
+  canvas.setAttribute("aria-label", `${name}: ${I.C} caches of ${fmt(I.X)} MB. Use the step buttons or the slider to move through the ${fmt(R.N)} steps; the readouts below describe the current step.`);
+  buildCharts();
+  seek(R.Ng);
+  try { localStorage.setItem("replay-instance", name); } catch (e) { /* storage unavailable */ }
+}
+(function buildPicker() {
+  const host = $("picker");
+  ORDER.forEach((n) => {
+    const b = el("button", { type: "button", "data-n": n, "aria-pressed": "false" }, n.replace("custom_", "").replace("universallambda42", "universalLambda42"));
+    b.addEventListener("click", () => loadInstance(n));
+    host.append(b);
+  });
+})();
+
+/* ---------- theme + resize ---------- */
+function repaint() { readColors(); if (R.I) { drawStage(); } exRenderDiagram(); }
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint);
+new MutationObserver(repaint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+let rsT = 0;
+new ResizeObserver(() => { clearTimeout(rsT); rsT = setTimeout(() => { if (R.I) { computeLayout(); drawStage(); } }, 80); }).observe(canvas.parentElement);
+
+readColors();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (R.I) drawStage(); });
+let start = "me_at_the_zoo";
+try { const s = localStorage.getItem("replay-instance"); if (s && D.instances[s]) start = s; } catch (e) { /* storage unavailable */ }
+loadInstance(start);
+})();
+</script>
