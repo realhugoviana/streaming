@@ -1,5 +1,7 @@
-#include <vector>
 
+#include <vector>
+#ifndef GREEEDY_DENSITY_HPP
+#define GREEEDY_DENSITY_HPP
 #include "../instance.hpp"
 
 /*
@@ -122,3 +124,5 @@ void greedy_density(InstanceData* instance) {
         }
     }
 }
+
+#endif
