@@ -308,8 +308,21 @@ if __name__=="__main__":
         "name": "_asymmetric"
     }
     
+    kwargs_demo = {
+        "E":1000, # dejaVu + universalLambda
+        "V":10_000, # dejaVu + universalLambda
+        "C":250, # dejaVu + universalLambda
+        "X":2000, # dejaVu + universalLambda
+        "seed":42, # dejaVu + universalLambda
+        "videoSizeLambda": lambdaCollection["video_negative_relu_distribution"], # universalLambda
+        "requestLambda": lambdaCollection["request_bell_distribution"], # universalLambda
+        "dcLambda": lambdaCollection["dcl_small_midpoint_step"], # universalLambda
+        "connectionLambda": lambdaCollection["connection_fifth_eights_uniform_three_out_distribution"],  # universalLambda
+        "name": "_demo"
+    }
+    
     # Choose your configurations
-    kwargs = kwargs_asymmetric
+    kwargs = kwargs_demo
         
     # Generate the instance
     with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}{kwargs.get('name','')}.in", "w") as file:
