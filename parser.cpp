@@ -3,6 +3,7 @@
 #include "src/solvers/greedy_density.cpp"
 #include <vector>
 #include <unordered_map>
+#include <ctime>
 
 /*
     PARSER RELATED FUNCTIONS
@@ -452,6 +453,38 @@ void freeInstanceData(InstanceData* instance) {
 
     *instance = {};
 }
+
+void optimize_r_r(InstanceData* instance) {
+    int ruin_rate_search_space[] = {2, 5, 10, 15, 20, 30, 50, 100};
+
+    clock_t before_greedy = clock();
+
+    greedy_density(instance);
+
+    float greedy_duration = (clock() - before_greedy) / CLOCKS_PER_SEC;
+
+    for (int ruin_rate_id = 0; ruin_rate_id < 8; ruin_rate_id++) {
+        int ruin_rate = ruin_rate_search_space[ruin_rate_id];
+        int num_moves = std::max(1, instance->ip.C / ruin_rate);
+
+        InstanceData current_instance = deepCopyInstanceData(instance);
+
+        clock_t before_optim = clock();
+
+        float optim_duration = 0;
+
+        while(optim_duration < 1800.0) {
+            clock_t before_rr = clock();
+
+            ruin_recreate(&current_instance, 1, num_moves);
+
+            float rr_duration = (clock() - before_rr) / CLOCKS_PER_SEC;
+
+            optim_duration = (clock() - before_optim) / CLOCKS_PER_SEC;
+        }
+        
+    }
+} 
 
 /*
     MAIN
