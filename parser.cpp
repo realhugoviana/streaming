@@ -141,7 +141,8 @@ void endpointParser(InstanceData& instance) {
 void requestParser(InstanceData& instance) {
     // Hashmap to merge requests having same video and endpoints if necessary
     std::unordered_map<int, std::unordered_map<int, int>> requestMap;
-    int video_id, endpoint_id, count, Rprime;
+    int video_id, endpoint_id, count;
+    int Rprime = 0;
 
     // For each request, get the video, the endpoint and the count
     for (int r = 0; r<instance.ip.R; r++) {
@@ -244,7 +245,7 @@ void showInstance(InstanceData* instance) {
         );
 
         /// Information about their connections
-        for (int k = 0; k<endpoint.K; k<k++) {
+        for (int k = 0; k<endpoint.K; k++) {
             printf("|. Connected to Cache [%d] with latency [%dms]\n", 
                 endpoint.endpoint_connections[k].idC, 
                 endpoint.endpoint_connections[k].cache_latency
@@ -255,7 +256,7 @@ void showInstance(InstanceData* instance) {
 
     // Information on the requests
     std::cout << "\n---[Requests Data]---" << std::endl;
-    printf("Total requested quantity [%d]\n", instance->sum_request_count);
+    printf("Total requested quantity [%lld]\n", instance->sum_request_count);
     for (int r = 0; r<instance->ip.R; r++) {
         printf("[requests no. %d] The video [%d] is requested from endpoint [%d] [%d] times. [Unitary Gain: %d]\n",
             instance->requests[r].idR,
@@ -364,6 +365,93 @@ void instanceOut(InstanceData* instance) {
     }
 }
 
+// Deep copies the InstanceData structure from an existing instance
+InstanceData deepCopyInstanceData(const InstanceData* original) {
+    if (!original) {
+        return {}; // Return a default constructed empty InstanceData if input is null
+    }
+
+    InstanceData copy;
+
+    // Copy primitive members
+    copy.ip = original->ip;
+    copy.sum_request_count = original->sum_request_count;
+    copy.score = original->score;
+
+    int V = copy.ip.V;
+    int E = copy.ip.E;
+    int R = copy.ip.R;
+    int C = copy.ip.C;
+
+    // --- Deep Copy Videos, Requests, and Caches ---
+    copy.videos = new Video[V];
+    for(int v = 0; v < V; ++v) {
+        // std::vector support assignment semantics (deep copy internal state)
+        copy.videos[v] = original->videos[v]; 
+    }
+
+    copy.requests = new Request[R];
+    for(int r = 0; r < R; ++r) {
+        copy.requests[r] = original->requests[r];
+    }
+    
+    copy.caches = new Cache[C];
+    for(int c = 0; c < C; ++c) {
+        copy.caches[c] = original->caches[c];
+    }
+
+    // --- Deep Copy Endpoints (Crucial: copy the nested pointer array) ---
+    copy.endpoints = new Endpoint[E];
+    for(int e = 0; e < E; ++e) {
+        const EndpointCacheConnection* oldConnections = original->endpoints[e].endpoint_connections;
+        int K = original->endpoints[e].K;
+
+        // Allocate and copy the connection array (the memory pointed to by endpoint_connections)
+        EndpointCacheConnection* newConnections = new EndpointCacheConnection[K];
+        for(int k = 0; k < K; ++k) {
+            newConnections[k] = oldConnections[k];
+        }
+
+        copy.endpoints[e].idE = original->endpoints[e].idE;
+        copy.endpoints[e].dc_latency = original->endpoints[e].dc_latency;
+        copy.endpoints[e].K = K;
+        // Assign the newly allocated memory address to avoid dangling pointers
+        copy.endpoints[e].endpoint_connections = newConnections; 
+    }
+
+    // --- Deep Copy Matrix: cache_affectation (bool**) ---
+    copy.cache_affectation = (bool**)malloc(V * sizeof(bool*));
+    for (int v = 0; v < V; ++v) {
+        copy.cache_affectation[v] = (bool*)calloc(C, sizeof(bool)); // Initialize to false
+    }
+
+    // Copying the matrix content element by element
+    for (int v = 0; v < V; ++v) {
+        for (int k = 0; k < C; ++k) {
+            copy.cache_affectation[v][k] = original->cache_affectation[v][k];
+        }
+    }
+
+    return copy;
+}
+
+// Frees everything an InstanceData owns (from parser() or deepCopyInstanceData), leaving it empty
+void freeInstanceData(InstanceData* instance) {
+    for (int e = 0; e < instance->ip.E; ++e) {
+        delete[] instance->endpoints[e].endpoint_connections;
+    }
+    delete[] instance->endpoints;
+    delete[] instance->videos;
+    delete[] instance->requests;
+    delete[] instance->caches;
+
+    for (int v = 0; v < instance->ip.V; ++v) {
+        free(instance->cache_affectation[v]);
+    }
+    free(instance->cache_affectation);
+
+    *instance = {};
+}
 
 /*
     MAIN
