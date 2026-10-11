@@ -8,7 +8,7 @@ HEADERS  := $(wildcard src/*.hpp)
 
 all: $(BIN)/parser $(SOLVERS) $(TOOLS)
 
-$(BIN)/parser: parser.cpp $(HEADERS) | $(BIN)
+$(BIN)/parser: parser.cpp $(HEADERS) $(wildcard src/solvers/*.cpp) | $(BIN)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 $(BIN)/%: src/solvers/%.cpp $(HEADERS) | $(BIN)
