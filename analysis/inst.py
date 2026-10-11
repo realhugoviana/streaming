@@ -4,16 +4,8 @@ import scipy.sparse as sp
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent          # repository root (analysis/ lives in it)
-GEN = REPO / "instances/new_instance_and_gen/instanceCreatorHashcode2016/instances"
-INSTANCES = {
-    "example": REPO / "instances/example.in",
-    "me_at_the_zoo": REPO / "instances/me_at_the_zoo.in",
-    "videos_worth_spreading": REPO / "instances/videos_worth_spreading.in",
-    "trending_today": REPO / "instances/trending_today.in",
-    "kittens": REPO / "instances/kittens.in",
-    "custom_dejavu42": GEN / "custom_dejavu42.in",
-    "custom_universallambda42": GEN / "custom_universallambda42.in",
-}
+# every instance in instances/ (not its subfolders), keyed by file name without .in
+INSTANCES = {p.stem: p for p in sorted((REPO / "instances").glob("*.in"))}
 
 
 class Instance:

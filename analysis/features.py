@@ -176,9 +176,13 @@ def analyse(name):
 
 if __name__ == "__main__":
     import sys
+    from pathlib import Path
     names = sys.argv[1:] or list(INSTANCES)
     out, dists = {}, {}
     for n in names:
+        if not Path(f"res/{n}.greedy.json").exists():          # the team greedy failed on it
+            print(f"skipping {n}: no team greedy result", file=sys.stderr)
+            continue
         out[n], dists[n] = analyse(n)
         print(json.dumps(out[n]))
     json.dump(out, open("res/features.json", "w"), indent=1)

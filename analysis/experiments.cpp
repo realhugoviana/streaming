@@ -2,7 +2,7 @@
 //   greedy_density / greedy_gain : lazy (CELF) greedy, same marginal-gain rule as the team's greedy
 //   kca                          : per-cache exact 0/1 knapsack re-optimisation ("rewrite one cache
 //                                  optimally, others fixed"), swept until no cache improves
-// Prints one JSON line. usage: experiments <instance> <mode> [init_solution|-] [out_solution|-] [max_sweeps]
+// Prints one JSON line. usage: experiments <instance> <mode> [init_solution|-] [out_solution|-] [max_sweeps] [time_budget_s]
 #include <bits/stdc++.h>
 using namespace std;
 typedef long long ll;
@@ -67,25 +67,31 @@ ll gain(int v, int c) {
 }
 
 void greedy(bool density) {
-    // max-heap on key; stale entries re-evaluated lazily (gains only decrease, space only shrinks)
+    // max-heap on (key, -v, -c): ties go to the lowest video, then the lowest cache, like the team's
+    // scan. Stale entries are re-evaluated lazily (gains only decrease, space only shrinks).
     priority_queue<tuple<double, int, int>> pq;
     for (int v = 0; v < V; v++) {
         if (sz[v] > X) continue;
-        for (int c = 0; c < C; c++) { ll g = gain(v, c); if (g > 0) pq.push({density ? (double)g / sz[v] : (double)g, v, c}); }
+        for (int c = 0; c < C; c++) { ll g = gain(v, c); if (g > 0) pq.push({density ? (double)g / sz[v] : (double)g, -v, -c}); }
     }
     while (!pq.empty()) {
-        auto [key, v, c] = pq.top(); pq.pop();
+        auto [key, nv, nc] = pq.top(); pq.pop();
+        int v = -nv, c = -nc;
         if (in[v][c] || sz[v] > leftm[c]) continue;
         ll g = gain(v, c);
         if (g <= 0) continue;
         double k = density ? (double)g / sz[v] : (double)g;
-        if (k < key - 1e-9 * max(1.0, key)) { pq.push({k, v, c}); continue; }
+        if (k < key) { pq.push({k, -v, -c}); continue; }
         in[v][c] = 1; leftm[c] -= sz[v];
         refresh_video(v);
     }
 }
 
-// exact re-optimisation of cache c given every other cache fixed
+// exact re-optimisation of cache c given every other cache fixed. The DP costs (candidates x X); when
+// that exceeds DP_BUDGET the pool is cut to the cache's current videos plus the best other candidates
+// by marginal gain per MB (the DP stays exact over that pool, so a rewrite never lowers the score).
+const ll DP_BUDGET = 400000000LL;
+int restricted_caches = 0, skipped_caches = 0;
 bool reopt_cache(int c) {
     // best saving for each request excluding cache c
     vector<ll> marg(V, 0);
@@ -101,6 +107,16 @@ bool reopt_cache(int c) {
     for (int v = 0; v < V; v++) {
         if (in[v][c]) curval += marg[v];
         if (touched[v] && marg[v] > 0 && sz[v] <= X) items.push_back(v);
+    }
+    ll max_items = DP_BUDGET / (X + 1);
+    if ((ll)items.size() > max_items) {
+        vector<int> mine, others;
+        for (int v : items) (in[v][c] ? mine : others).push_back(v);
+        if ((ll)mine.size() > max_items) { skipped_caches++; return false; }
+        sort(others.begin(), others.end(), [&](int a, int b) { return (double)marg[a] / sz[a] > (double)marg[b] / sz[b]; });
+        others.resize(max_items - mine.size());
+        items = mine; items.insert(items.end(), others.begin(), others.end());
+        restricted_caches++;
     }
     int n = items.size();
     vector<ll> dp(X + 1, 0);
@@ -150,15 +166,23 @@ int main(int argc, char** argv) {
         greedy(mode == "greedy_density");
     } else if (mode == "kca") {
         int max_sweeps = argc > 5 ? atoi(argv[5]) : 50;
+        double budget = argc > 6 ? atof(argv[6]) : 600;
+        bool converged = false, out_of_time = false;
+        long long rewrites = 0;
         printf(",\"sweeps\":[");
-        for (int sw = 0; sw < max_sweeps; sw++) {
+        for (int sw = 0; sw < max_sweeps && !out_of_time; sw++) {
             int improved = 0;
-            for (int c = 0; c < C; c++) improved += reopt_cache(c);
+            for (int c = 0; c < C; c++) {
+                improved += reopt_cache(c);
+                if (el() > budget) { out_of_time = true; break; }
+            }
+            rewrites += improved;
             printf("%s[%d,%lld,%.1f]", sw ? "," : "", improved, contest(score()), el());
             fflush(stdout);
-            if (!improved) break;
+            if (!improved && !out_of_time) { converged = true; break; }
         }
-        printf("]");
+        printf("],\"converged\":%s,\"out_of_time\":%s,\"rewrites\":%lld,\"restricted_caches\":%d,\"skipped_caches\":%d",
+               converged ? "true" : "false", out_of_time ? "true" : "false", rewrites, restricted_caches, skipped_caches);
     }
     ll used = 0; for (int c = 0; c < C; c++) used += X - leftm[c];
     printf(",\"final_contest\":%lld,\"final_weighted\":%lld,\"fill\":%.6f,\"time_s\":%.2f}\n", contest(score()), score(), (double)used / ((double)C * X), el());

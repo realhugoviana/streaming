@@ -6,6 +6,7 @@ were written for the 2026-09-27 results and should be re-read if the solver chan
 """
 import glob
 import json
+import math
 import re
 from pathlib import Path
 
@@ -28,8 +29,19 @@ for f in glob.glob(str(R / "*.bounds.*.json")):
     d = json.load(open(f))
     bounds.setdefault(d["name"], {}).update({k: v for k, v in d.items() if k != "name"})
 
-data = {"features": feat, "extra": extra, "plots": plots, "team": team, "exp": exp, "bounds": bounds}
-json.dump(data, open(R / "data.json", "w"))
+def finite(x):
+    """NaN/inf (e.g. a correlation over constant sizes) are not valid JSON for the browser: use null."""
+    if isinstance(x, float) and not math.isfinite(x):
+        return None
+    if isinstance(x, dict):
+        return {k: finite(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [finite(v) for v in x]
+    return x
+
+
+data = finite({"features": feat, "extra": extra, "plots": plots, "team": team, "exp": exp, "bounds": bounds})
+json.dump(data, open(R / "data.json", "w"), allow_nan=False)
 for n in feat:
     print(f"{n:26s} team {team[n]['greedy_contest']:>9,}",
           {k: (v if not isinstance(v, dict) else round(v.get("value") or 0)) for k, v in bounds.get(n, {}).items()},
