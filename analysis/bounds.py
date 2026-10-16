@@ -125,12 +125,32 @@ def full(I, g, time_limit, integer=False):
     return res, sol
 
 
+def auto_choice(I, g):
+    """Bounds worth computing for this size: P = video-cache pairs (LP columns), Y = request-link pairs."""
+    P = int((g > 0).sum())
+    Y = int(((I.S > 0).sum(1)[I.re] * (I.size[I.rv] <= I.X)).sum())
+    which = ["cov"]
+    if P <= 1_500_000:
+        which.append("alp")
+    if Y <= 350_000:
+        which.append("lp")
+    if P <= 3_000 and Y <= 30_000:
+        which.append("mip")
+    return which, {"pairs": P, "request_links": Y}
+
+
 if __name__ == "__main__":
     name, which = sys.argv[1], sys.argv[2:]
     I = Instance(name)
     g = I.gain_matrix()
     g[I.size > I.X, :] = 0
     out = {"name": name}
+    if which == ["auto"]:              # pick by size; see auto_choice
+        which, out["auto_sizes"] = auto_choice(I, g)
+        print(f"{name}: {out['auto_sizes']} -> {' '.join(which)}", flush=True)
+        which_tag = "auto"
+    else:
+        which_tag = "_".join(which)
     for w in which:
         t = time.time()
         if w == "cov":
@@ -140,9 +160,9 @@ if __name__ == "__main__":
         elif w == "rlp":
             out["RLP"] = rlp(I, g, 1500)
         elif w == "lp":
-            out["LP"] = full(I, g, 1500)[0]
+            out["LP"] = full(I, g, 900)[0]
         elif w == "mip":
-            res, sol = full(I, g, 900, integer=True)
+            res, sol = full(I, g, 120, integer=True)
             out["MIP"] = res
             if sol is not None:
                 wsc = I.score_solution(sol)[0]
@@ -151,4 +171,4 @@ if __name__ == "__main__":
                     for c in sorted(sol):
                         fh.write(" ".join(map(str, [c] + sorted(sol[c]))) + "\n")
         print(w, f"{time.time()-t:.1f}s", json.dumps(out.get({'cov':'UB_cov','alp':'ALP','rlp':'RLP','lp':'LP','mip':'MIP'}[w]), default=str), flush=True)
-    json.dump(out, open(f"res/{name}.bounds.{'_'.join(which)}.json", "w"), indent=1, default=str)
+    json.dump(out, open(f"res/{name}.bounds.{which_tag}.json", "w"), indent=1, default=str)

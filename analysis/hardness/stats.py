@@ -1,14 +1,13 @@
-"""Statistics for one small instance: shape features, the team's greedy, the exact optimum and the gap.
+"""Statistics for one instance: shape features and the team's greedy solution.
 
 usage (from anywhere):
-  python3 analysis/hardness/stats.py <instance.in> [--time-limit SECONDS]
+  python3 analysis/hardness/stats.py <instance.in>
   python3 analysis/hardness/stats.py --random SEED [--save FILE]     generate one from small.random_instance
 
-The greedy is greedy_density's exact rule (see small.py). The optimum is solved exactly with HiGHS, which
-is quick up to a few dozen videos and caches; beyond that it may stop at the time limit, and the gap is
-then reported as a range. Duplicate request lines are merged; a duplicated endpoint->cache link keeps
-the first latency listed, as the team's latencyToCache does. If analysis/out/bin/team_driver exists
-(built by run_all.sh), the team's compiled greedy is run as a cross-check.
+The greedy is greedy_density's exact rule (see small.py). Duplicate request lines are merged; a
+duplicated endpoint->cache link keeps the first latency listed, as the team's latencyToCache does.
+If analysis/out/bin/team_driver exists (built by run_all.sh), the team's compiled greedy is run as a
+cross-check. The exact optimum is not computed here (sweep.py / adversary.py do that on small instances).
 """
 import argparse
 import json
@@ -20,7 +19,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from small import Small, greedy, optimum, features, random_instance  # noqa: E402
+from small import Small, greedy, features, random_instance  # noqa: E402
 
 TEAM = HERE.parent / "out" / "bin" / "team_driver"
 LABELS = {
@@ -68,7 +67,6 @@ def main():
     ap.add_argument("instance", nargs="?", help=".in file")
     ap.add_argument("--random", type=int, metavar="SEED", help="generate a random small instance instead")
     ap.add_argument("--save", metavar="FILE", help="with --random: also write the instance to FILE")
-    ap.add_argument("--time-limit", type=float, default=60.0)
     a = ap.parse_args()
     if a.random is not None:
         inst = random_instance(np.random.default_rng(a.random))
@@ -84,8 +82,6 @@ def main():
     total = int(inst.rn.sum())
     print(f"Instance: {inst.V} videos, {inst.E} endpoints, {inst.C} caches of {inst.X} MB, "
           f"{inst.meta['request_lines']} request lines -> {inst.R} distinct, {total:,} requests in total")
-    if inst.V * inst.C > 5000:
-        print(f"  note: {inst.V * inst.C:,} video-cache pairs; the exact optimum may hit the {a.time_limit:g} s limit")
 
     print("\nShape")
     for k, v in features(inst).items():
@@ -99,25 +95,16 @@ def main():
     if len(steps) > 15:
         print(f"  ... {len(steps) - 15} more")
 
-    op, ow, bound, status = optimum(inst, a.time_limit)
-    best = max(ow, gw)
-    print(f"\nOptimum: {inst.contest(best):,} points ({status})")
-    if status == "optimal":
-        print(f"Gap: {1 - gw / best:.2%} of the optimum is lost by the greedy" if best > 0 else "Gap: 0 (nothing can be gained)")
-    else:
-        print(f"Gap: between {1 - gw / best:.2%} and {1 - gw / bound:.2%} (time limit reached; upper bound {inst.contest(bound):,})")
-
     gg = greedy(inst, key="gain")[1]
     print(f"Same greedy ranked by raw gain: {inst.contest(gg):,} points; best of both: {inst.contest(max(gw, gg)):,}")
 
-    if ow > gw:
-        print("\nWhere the optimum differs (per cache: only in the greedy / only in the optimum)")
-        G, O = placement(gp), placement(op)
-        for c in range(inst.C):
-            only_g = sorted(set(G[c]) - set(O[c])); only_o = sorted(set(O[c]) - set(G[c]))
-            if only_g or only_o:
-                fmt = lambda vs: ", ".join(f"v{v} ({inst.size[v]} MB)" for v in vs) or "-"
-                print(f"  cache {c}: greedy only {fmt(only_g)}  |  optimum only {fmt(only_o)}")
+    print("\nGreedy solution per cache (used / capacity: videos)")
+    G = placement(gp)
+    for c in range(min(inst.C, 20)):
+        used = int(inst.size[G[c]].sum())
+        print(f"  cache {c}: {used} / {inst.X} MB: " + (", ".join(f"v{v}" for v in G[c][:12]) + (f" +{len(G[c]) - 12} more" if len(G[c]) > 12 else "") or "empty"))
+    if inst.C > 20:
+        print(f"  ... {inst.C - 20} more caches")
 
     if TEAM.exists():
         with tempfile.NamedTemporaryFile("w", suffix=".in", delete=False) as f:

@@ -1,6 +1,7 @@
 #include "src/instance.hpp"
 #include "src/solvers/local_search.cpp"
 #include "src/solvers/greedy_density.cpp"
+#include "src/solvers/knapsack_reopt.cpp"
 #include <vector>
 #include <unordered_map>
 
@@ -474,6 +475,8 @@ int main(int argc, char* argv[]) {
         ruin_recreate(&instance, 1, num_moves);
         std::cout << i << "|| contest score: " << computeContestScore(&instance) << std::endl;
     }
+    knapsack_reopt(&instance);
+    std::cout << "knapsack || contest score: " << computeContestScore(&instance) << std::endl;
     //local_search(&instance, 1000);
     //std::cerr << "score: " << instance.score << std::endl;
     //std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
