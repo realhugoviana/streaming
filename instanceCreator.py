@@ -276,7 +276,7 @@ def request_bell_distribution(idE, idV, rng):
 
 if __name__=="__main__":
     # GENERATE FROM GENERATOR
-    generateFrom:Literal["dejaVu", "universalLambda"] = "universalLambda"
+    generateFrom:Literal["dejaVu", "universalLambda"] = "dejaVu"
     
     # KWARGS of dejaVu42 and universalLambda42
     kwargs_base = {
@@ -288,6 +288,23 @@ if __name__=="__main__":
         "C":20, # dejaVu + universalLambda
         "X":2000, # dejaVu + universalLambda
         "seed":42, # dejaVu + universalLambda
+        "videoSizeLambda": lambdaCollection["video_negative_relu_distribution"], # universalLambda
+        "requestLambda": lambdaCollection["request_bimodal_modular_uniform_distribution"], # universalLambda
+        "dcLambda": lambdaCollection["dcl_endpoint_increasing_average_distribution"], # universalLambda
+        "connectionLambda": lambdaCollection["connection_fifth_eights_uniform_three_out_distribution"],  # universalLambda
+        "name": ""
+    }
+    
+    # KWARGS for contest
+    kwargs_baseContest = {
+        "E":115, # dejaVu + universalLambda
+        "V":10_000, # dejaVu + universalLambda
+        "R":999_000, # dejaVu
+        "V_min_size":4, # dejaVu
+        "V_max_size":110, # dejaVu
+        "C":20, # dejaVu + universalLambda
+        "X":2000, # dejaVu + universalLambda
+        "seed":0, # dejaVu + universalLambda
         "videoSizeLambda": lambdaCollection["video_negative_relu_distribution"], # universalLambda
         "requestLambda": lambdaCollection["request_bimodal_modular_uniform_distribution"], # universalLambda
         "dcLambda": lambdaCollection["dcl_endpoint_increasing_average_distribution"], # universalLambda
@@ -335,7 +352,7 @@ if __name__=="__main__":
     }
     
     # Choose your configurations
-    kwargs = kwargs_demo2
+    kwargs = kwargs_baseContest
         
     # Generate the instance
     with open(f"instances/custom_{generateFrom.lower()}{kwargs.get('seed', '')}{kwargs.get('name','')}.in", "w") as file:
