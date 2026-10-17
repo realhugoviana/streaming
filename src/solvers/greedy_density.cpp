@@ -76,6 +76,11 @@ void place(InstanceData* instance, int v, int c) {
 /// for a beneficial video.
 /// @param instance
 void greedy_density(InstanceData* instance) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::uniform_real_distribution<double> random_prob(0.0, 1.0);
+
     int V = instance->ip.V;
     int C = instance->ip.C;
 
@@ -91,10 +96,11 @@ void greedy_density(InstanceData* instance) {
         }
     }
 
+
+    int bestVideo[] = {-1, -1};
+    int bestCache[] = {-1, -1};
+    double bestDensity[] = {0, 0};
     while (true) {
-        int bestVideo = -1;
-        int bestCache = -1;
-        double bestDensity = 0;
 
         // Scan the table: no gainOf call here, only reads
         for (int v = 0; v < V; v++) {
@@ -106,21 +112,34 @@ void greedy_density(InstanceData* instance) {
                 if (gain <= 0) continue;
 
                 double density = (double)gain / instance->videos[v].vsize;
-                if (density > bestDensity) {
-                    bestDensity = density;
-                    bestVideo = v;
-                    bestCache = c;
+                if (density > bestDensity[0]) {
+                    bestDensity[0] = density;
+                    bestVideo[0] = v;
+                    bestCache[0] = c;
+                }
+                else if (density > bestDensity[1]) {
+                    bestDensity[1] = density;
+                    bestVideo[1] = v;
+                    bestCache[1] = c;
                 }
             }
         }
 
-        if (bestVideo == -1) break;
-
-        place(instance, bestVideo, bestCache);
+        if (bestVideo[0] == -1) break;
+        double prob = random_prob(gen);
+        int selected_assignment = (prob < 0.9) ? 0 : 1;
+        if (bestVideo[1] == -1) selected_assignment = 0;
+        place(instance, bestVideo[selected_assignment], bestCache[selected_assignment]);
 
         // Refresh ONLY the row of the video we just placed
         for (int c = 0; c < C; c++) {
-            gainTable[bestVideo][c] = gainOf(instance, bestVideo, c);
+            gainTable[bestVideo[selected_assignment]][c] = gainOf(instance, bestVideo[selected_assignment], c);
+        }
+
+        for (int i = 0; i < 2; i++) {
+            bestDensity[i] = 0;
+            bestVideo[i] = -1;
+            bestCache[i] = -1;
         }
     }
 }

@@ -470,16 +470,16 @@ int main(int argc, char* argv[]) {
 
     greedy_density(&instance);
     std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
-    int num_moves = std::max(1, instance.ip.C / 20);
-    for (int i=0; i < 35; i++) {
-        ruin_recreate(&instance, 1, num_moves);
-        std::cout << i << "|| contest score: " << computeContestScore(&instance) << std::endl;
+    int num_moves = std::max(1, instance.ip.C / 3);
+    for (int j=0; j < 5000; j++) {
+        knapsack_reopt(&instance);
+        std::cout << j << " - knapsack || contest score: " << computeContestScore(&instance) << std::endl;
+        for (int i=0; i < 30; i++) {
+            ruin_recreate(&instance, 1, num_moves);
+            std::cout << j << " - " << i << "|| contest score: " << computeContestScore(&instance) << std::endl;
+        }
     }
-    knapsack_reopt(&instance);
-    std::cout << "knapsack || contest score: " << computeContestScore(&instance) << std::endl;
-    //local_search(&instance, 1000);
-    //std::cerr << "score: " << instance.score << std::endl;
-    //std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
+    std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
 
     //instanceOut(&instance);
     return 0;
