@@ -470,7 +470,7 @@ int main(int argc, char* argv[]) {
 
     greedy_density(&instance);
     std::cout << "greedy || contest score: " << computeContestScore(&instance) << std::endl;
-    int num_moves = std::max(1, instance.ip.C / 3);
+    int num_moves = std::max(1, instance.ip.C / 10);
     for (int j=0; j < 5000; j++) {
         for (int i=0; i < 30; i++) {
             ruin_recreate(&instance, 1, num_moves);
