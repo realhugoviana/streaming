@@ -1,6 +1,6 @@
 # Instances
 
-Instance files are not versioned (some are over 10 MB). Put them here:
+Instance files are kept locally in this folder:
 
 - `instances/*.in`: the HashCode 2017 qualification instances (`example.in`, `me_at_the_zoo.in`,
   `videos_worth_spreading.in`, `trending_today.in`, `kittens.in`) and any custom ones, e.g. made with

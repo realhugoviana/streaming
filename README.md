@@ -1,26 +1,70 @@
 # Streaming Videos — Google HashCode 2017
 
-Advanced Problem Solving project (M2) by Vianna, Diter and Lesage.
+Advanced Problem Solving, M2 — **Hugo Viana, Arno Lesage, Justin Diter**
 
-Videos have to be placed in capacity-limited cache servers so that endpoints fetch them with the
-least latency. The score is the latency saved per request, averaged over all requests and scaled by
-1000 (the contest instances use the same scoring).
+## Problem
+
+A video platform serves its videos from a data center and from cache servers of fixed capacity
+`X` MB. Each endpoint is linked to the data center and to some of the caches, each with its own
+latency. A request description says how many times an endpoint asks for a video. The task is to
+choose which videos each cache stores.
+
+A request is served by the lowest-latency cache that is linked to its endpoint and holds the video,
+otherwise by the data center. The score is the latency saved over all requests, divided by the
+total number of requests and multiplied by 1000:
+
+```
+score = floor( 1000 · Σ_r count_r · (L_datacenter(e_r) − L_best_cache(r)) / Σ_r count_r )
+```
 
 ## Approach
 
-`parser.cpp` reads an instance on stdin and chains the solvers in `src/solvers/`:
+`parser.cpp` reads an instance on stdin and runs the following pipeline, built from the solvers in
+`src/solvers/`.
 
-1. **Greedy by density** (`greedy_density.cpp`): repeatedly places the (video, cache) pair with the
-   highest gain per MB, using a lazy max-heap. With probability `1 - p_best` it places the runner-up
-   instead, so that repeated runs explore different solutions.
-2. **Ruin & recreate** (`local_search.cpp`): empties part of a few random caches (each video is
-   removed with probability `p_ruin`), refills them with the greedy and keeps the result if it is
-   better. The same file has the add/remove and swap moves of the local search.
-3. **Knapsack re-optimisation** (`knapsack_reopt.cpp`): solves each cache in turn exactly as a 0/1
-   knapsack over its candidate videos, with the other caches fixed.
+```
+            ┌───────────────────────┐
+ instance ─▶│ greedy by density     │
+            └───────────┬───────────┘
+                        ▼
+      ┌─────────────────────────────────────┐
+      │ 30 × ruin & recreate                │◀─┐
+      │ 1  × knapsack re-optimisation       │  │ up to 5000 rounds,
+      └─────────────────┬───────────────────┘──┘ or until SIGINT / SIGTERM
+                        ▼
+                 best solution (stdout)
+```
 
-Steps 2 and 3 alternate until the iteration budget runs out or the process gets `SIGINT`/`SIGTERM`.
-Either way it prints the best solution found to stdout in the judge format. Progress goes to stderr.
+**Greedy by density** (`greedy_density.cpp`). Every (video, cache) pair has a gain: the latency it
+would save on top of the current placements. The greedy repeatedly places the pair with the highest
+gain per MB, kept in a lazy max-heap: when a placement changes a pair's gain, the new value is
+pushed and the outdated entry is dropped when it reaches the top. With
+probability `1 − p_best` it places the runner-up instead, which makes each run a different
+solution.
+
+**Ruin & recreate** (`local_search.cpp`). Picks `C/5` random caches, removes each of their videos
+with probability `p_ruin`, then refills the freed space with the randomized greedy. The new solution
+replaces the current one when its score is higher. The same file holds the add/remove and swap
+moves and the score update shared by all solvers.
+
+**Knapsack re-optimisation** (`knapsack_reopt.cpp`). Takes the caches one at a time and solves the
+cache exactly as a 0/1 knapsack, with the other caches fixed: each candidate video is worth the
+extra latency it saves given what the other caches already serve, and the dynamic program picks the
+best set that fits in `X`.
+
+**Exact MIP** (`analysis/bounds.py`). For instances with up to 3 000 useful (video, cache) pairs
+and 30 000 (request, cache) links, the whole problem is written as a mixed-integer program and solved with HiGHS (through
+`scipy.optimize.milp`, 120 s limit). It also gives the upper bounds used in the instance study.
+
+### Parameters
+
+| Parameter | Value | Where | Role |
+|---|---|---|---|
+| `p_best` | 0.85 | `greedy_density.cpp` | probability of placing the best pair (1 = deterministic greedy) |
+| `p_ruin` | 0.85 | `local_search.cpp` | probability of removing each video of a ruined cache |
+| caches per ruin | `C/5` | `parser.cpp` | number of random caches ruined per step |
+| ruin & recreate steps | 30 per round | `parser.cpp` | steps between two knapsack passes |
+| rounds | 5000 | `parser.cpp` | outer iterations |
 
 ## Build and run
 
@@ -30,52 +74,87 @@ Needs `g++` with C++17.
 make
 ```
 
-This builds `bin/parser` and `bin/judge` (the official HashCode judge, `src/tools/judge.cpp`).
+This builds `bin/parser` and `bin/judge`, the official HashCode judge (`src/tools/judge.cpp`).
+Instance files go in `instances/` ([instances/README.md](instances/README.md)).
+
+Solve an instance with a time limit. On `SIGINT` the parser finishes its current move and prints
+the best solution found:
 
 ```bash
 timeout --foreground -s INT 60 bin/parser < instances/example.in > example.out
 ```
 
+Score it:
+
 ```bash
 bin/judge instances/example.in example.out
 ```
 
-Instance files are not in the repository; see [instances/README.md](instances/README.md).
-
 ### Contest run
 
-`run_final.sh` runs the parser on every instance in `instances/instances_contest/` in parallel,
-judges each output, and keeps the best valid solution per instance in `solutions_contest/`:
+`run_final.sh` runs the parser on every instance of `instances/instances_contest/` in parallel,
+judges each output and keeps the best valid solution per instance in `solutions_contest/`. The
+arguments are the seconds per instance and the number of parallel jobs:
 
 ```bash
 ./run_final.sh 600 15
 ```
 
-The arguments are the seconds per instance and the number of parallel jobs.
-
 ## Results
 
-Judge scores of the final solutions on the 15 contest instances:
+Final judge scores on the 15 contest instances, keeping the best solution found for each:
 
-| Instance | Score | Instance | Score | Instance | Score |
-|---|---:|---|---:|---|---:|
-| 01 | 986 404 | 06 | 1 542 411 | 11 | 132 066 |
-| 02 | 984 635 | 07 | 1 094 813 | 12 | 329 758 |
-| 03 | 2 550 000 | 08 | 53 370 | 13 | 5 066 462 |
-| 04 | 1 956 202 | 09 | 1 022 070 | 14 | 57 482 |
-| 05 | 5 297 270 | 10 | 581 696 | 15 | 292 212 |
+| Instance | Score | Method |
+|---|---:|---|
+| 01 | 1 005 593 | Exact MIP, proven optimal |
+| 02 | 986 110 | Exact MIP, proven optimal |
+| 03 | 2 550 000 | Greedy + ruin & recreate + knapsack |
+| 04 | 1 958 009 | Exact MIP (120 s) |
+| 05 | 5 297 270 | Greedy + ruin & recreate + knapsack |
+| 06 | 2 355 465 | Exact MIP, proven optimal |
+| 07 | 1 094 813 | Greedy + ruin & recreate + knapsack |
+| 08 | 53 411 | Greedy + ruin & recreate |
+| 09 | 1 022 332 | Greedy + ruin & recreate + knapsack |
+| 10 | 581 696 | Greedy + ruin & recreate + knapsack |
+| 11 | 132 066 | Greedy + ruin & recreate + knapsack |
+| 12 | 329 758 | Greedy + ruin & recreate + knapsack |
+| 13 | 5 066 500 | Greedy by density |
+| 14 | 57 482 | Greedy + ruin & recreate + knapsack |
+| 15 | 292 212 | Greedy + ruin & recreate + knapsack |
+| **Total** | **22 782 717** | |
 
-**Total: 21 946 851**
+## Instance study
+
+`analysis/` holds the study of the instances: their features, provable upper bounds (coverage
+bound, LP relaxations, MIP), how each configuration of our solvers performs on each instance, and
+experiments on small instances solved to optimality. It builds two pages, the instance atlas and a
+step-by-step replay of the greedy and the knapsack re-optimisation. See
+[analysis/README.md](analysis/README.md).
+
+Main findings:
+
+- Ranking pairs by gain per MB is what makes the greedy strong: on the HashCode instances it lands
+  within 2% of the best upper bound.
+- Capacity pressure (cache space against the volume of requested videos), videos per cache, overlap
+  between caches and spread of video sizes are the features that decide which method gains most.
+- Knapsack re-optimisation pays off most where caches are tightly packed: the full pipeline scores
+  +81% over the greedy on instance09, +41% on instance01 and +32% on instance15.
+- Small instances are solved exactly by the MIP, which is how instances 01, 02 and 06 reach their
+  optimum.
+
+The two presentations are in `presentations/`, with the R code of the PCA and correlation plots.
+The instance generator written for the study is in `generator/` (`git submodule update --init`).
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `parser.cpp` | Instance parser, main search loop, solution output |
-| `src/instance.hpp` | Instance data structures, scoring, copy/free helpers |
-| `src/solvers/` | Greedy, local search / ruin & recreate, knapsack re-optimisation |
-| `src/tools/judge.cpp` | Official judge |
+| `src/instance.hpp` | Instance data structures, scoring, copy and free helpers |
+| `src/solvers/` | Greedy by density, local search and ruin & recreate, knapsack re-optimisation |
+| `src/tools/judge.cpp` | Official HashCode judge |
 | `run_final.sh` | Contest run with a time limit per instance |
-| `analysis/` | Instance study: features, upper bounds, hardness experiments, report pages ([README](analysis/README.md)) |
-| `generator/` | Instance generator (git submodule: `git submodule update --init`) |
-| `presentations/` | Slides of the two presentations, R code for the PCA/correlation plots |
+| `analysis/` | Instance study and report pages |
+| `generator/` | Instance generator (git submodule) |
+| `presentations/` | Slides and plotting code |
+| `instances/` | Instance files ([instances/README.md](instances/README.md)) |
