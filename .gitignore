@@ -1,1 +1,19 @@
+# Build outputs
+/bin/
+/parser
+*.exe
+*.o
+
+# Instances and solutions are not versioned (see instances/README.md)
+/instances/*
+!/instances/README.md
 /solutions_contest/
+/runs_contest/
+/logs_contest/
+/judge_output/
+/scores*.txt
+
+# OS / download residue
+__MACOSX/
+*:Zone.Identifier
+.DS_Store
