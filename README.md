@@ -96,29 +96,6 @@ arguments are the seconds per instance and the number of parallel jobs:
 ./run_final.sh 600 15
 ```
 
-## Results
-
-Final judge scores on the 15 contest instances, keeping the best solution found for each:
-
-| Instance | Score | Method |
-|---|---:|---|
-| 01 | 986 404 | Greedy + ruin & recreate + knapsack |
-| 02 | 984 635 | Greedy + ruin & recreate + knapsack |
-| 03 | 2 550 000 | Greedy + ruin & recreate + knapsack |
-| 04 | 1 956 202 | Greedy + ruin & recreate + knapsack |
-| 05 | 5 297 270 | Greedy + ruin & recreate + knapsack |
-| 06 | 1 542 411 | Greedy + ruin & recreate + knapsack |
-| 07 | 1 094 813 | Greedy + ruin & recreate + knapsack |
-| 08 | 53 411 | Greedy + ruin & recreate |
-| 09 | 1 022 332 | Greedy + ruin & recreate + knapsack |
-| 10 | 581 696 | Greedy + ruin & recreate + knapsack |
-| 11 | 132 066 | Greedy + ruin & recreate + knapsack |
-| 12 | 329 758 | Greedy + ruin & recreate + knapsack |
-| 13 | 5 066 500 | Greedy by density |
-| 14 | 57 482 | Greedy + ruin & recreate + knapsack |
-| 15 | 292 212 | Greedy + ruin & recreate + knapsack |
-| **Total** | **21 947 192** | |
-
 ## Instance study
 
 `analysis/` holds the study of the instances: their features, provable upper bounds (coverage
