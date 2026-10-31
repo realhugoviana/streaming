@@ -1,11 +1,14 @@
 """Shared loader for HashCode 2017 'Streaming Videos' instances (numpy, dedups requests)."""
+import os
 import numpy as np
 import scipy.sparse as sp
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent          # repository root (analysis/ lives in it)
-# every instance in instances/ (not its subfolders), keyed by file name without .in
-INSTANCES = {p.stem: p for p in sorted((REPO / "instances").glob("*.in"))}
+# every instance in the local contest set instances/instances_contest/, or in $STREAM_INSTANCES (not
+# its subfolders), keyed by file name without .in / .txt
+INST_DIR = Path(os.environ.get("STREAM_INSTANCES") or REPO / "instances" / "instances_contest").resolve()
+INSTANCES = {p.stem: p for p in sorted(INST_DIR.iterdir()) if p.is_file() and p.suffix in (".in", ".txt")}
 
 
 class Instance:

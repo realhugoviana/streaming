@@ -35,7 +35,7 @@ for variant, name in NAMES.items():
     inst, gap, g, o = best
     path = out / f"{name}.in"
     path.write_text(inst.to_in())
-    team = subprocess.run(["bin/team_driver", "/dev/null", "0"], stdin=open(path), capture_output=True, text=True, check=True).stdout
+    team = subprocess.run(["bin/team_driver", "/dev/null", "greedy"], stdin=open(path), capture_output=True, text=True, check=True).stdout
     team_contest = json.loads(team)["greedy_contest"]
     ok = "matches" if team_contest == inst.contest(g) else f"MISMATCH ({team_contest})"
     print(f"{path.name:28s} {inst.V:3d} {inst.E:2d} {inst.C:2d} {inst.X:4d}  {inst.contest(g):8,} {inst.contest(o):8,}  {gap:6.2%}  {ok}")

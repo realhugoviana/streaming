@@ -6,9 +6,12 @@ import json
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.csgraph import connected_components
-from inst import Instance, read_solution
+from inst import Instance, INSTANCES, read_solution
 
 ex = {}
+if not {"custom_universallambda42", "custom_dejavu42", "trending_today", "kittens", "videos_worth_spreading"} <= INSTANCES.keys():
+    json.dump(ex, open("res/extra.json", "w"))      # another instance set (INST_DIR): these figures do not apply
+    raise SystemExit
 
 # universalLambda: demand split by endpoint / video parity, and what the greedy places
 I = Instance("custom_universallambda42")

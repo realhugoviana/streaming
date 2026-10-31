@@ -16,6 +16,8 @@
   --s2: #eb6834;
   --s3: #1baf7a;
   --heat: #2a78d6;
+  --pos: #2a78d6;
+  --neg: #e34948;
   --good: #0ca30c;
   --warn: #fab219;
   --crit: #d03b3b;
@@ -41,6 +43,8 @@
     --s2: #d95926;
     --s3: #199e70;
     --heat: #3987e5;
+  --pos: #3987e5;
+  --neg: #e66767;
     --code-bg: #1d2029;
     --tip-bg: #eef0f5;
     --tip-ink: #131722;
@@ -60,6 +64,8 @@
   --s2: #d95926;
   --s3: #199e70;
   --heat: #3987e5;
+  --pos: #3987e5;
+  --neg: #e66767;
   --code-bg: #1d2029;
   --tip-bg: #eef0f5;
   --tip-ink: #131722;
@@ -138,6 +144,7 @@ table.matrix tr.group td { background: var(--bg); font: 500 11.5px/1.3 var(--mon
 .mini { display: grid; gap: 2px; }
 .mini .cap { font-size: 11.5px; color: var(--muted); }
 .mini svg { width: 100%; height: auto; display: block; overflow: visible; }
+.mini.wide { grid-column: 1 / -1; }
 .profile p { font-size: 13.5px; }
 .profile .verdict { font-size: 13.5px; border-top: 1px solid var(--hair); padding-top: 10px; }
 
@@ -148,6 +155,11 @@ table.matrix tr.group td { background: var(--bg); font: 500 11.5px/1.3 var(--mon
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .legend i.tick { width: 2px; height: 12px; border-radius: 0; background: var(--ink); }
+.legend i.ring { background: transparent; border: 2px solid var(--muted); }
+.legend i.line { width: 16px; height: 2px; border-radius: 1px; }
+td.best { font-weight: 600; }
+table.corr td.cell { background: color-mix(in oklab, var(--pole) calc(var(--t, 0) * 45%), var(--surface)); }
+table.corr td.cell.strong { font-weight: 600; }
 svg text { font-family: var(--body); fill: var(--ink-2); }
 svg .axis-text { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 svg .row-text { font-family: var(--mono); font-size: 11.5px; fill: var(--ink); }
