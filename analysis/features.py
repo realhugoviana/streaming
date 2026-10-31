@@ -1,7 +1,10 @@
 """Extract structural features + bounds for every instance, and structure of the greedy solution."""
 import json
+from pathlib import Path
 import numpy as np
 from inst import Instance, INSTANCES, read_solution
+
+ALGORITHMS = ("greedy", "greedy90", "rr", "rr_knapsack")
 
 
 def gini(x):
@@ -142,6 +145,9 @@ def analyse(name):
     f["density_gini"] = gini(dens)
 
     # ---------- greedy solution structure
+    # every team algorithm's solution, re-scored here (see team_driver.cpp)
+    f["algo_contest"] = {a: I.contest(I.score_solution(read_solution(p))[0])
+                         for a in ALGORITHMS if (p := Path(f"sol/{name}.{a}.txt")).exists()}
     sol = read_solution(f"sol/{name}.greedy.txt")
     wsc, used, best, Xm = I.score_solution(sol)
     f["greedy_contest"] = I.contest(wsc)
@@ -176,7 +182,6 @@ def analyse(name):
 
 if __name__ == "__main__":
     import sys
-    from pathlib import Path
     names = sys.argv[1:] or list(INSTANCES)
     out, dists = {}, {}
     for n in names:

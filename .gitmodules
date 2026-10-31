@@ -1,0 +1,3 @@
+[submodule "instanceCreatorHashcode2016"]
+	path = generator/instanceCreatorHashcode2016
+	url = https://github.com/LesageArno/instanceCreatorHashcode2016.git

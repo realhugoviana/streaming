@@ -109,7 +109,7 @@ def main():
     if TEAM.exists():
         with tempfile.NamedTemporaryFile("w", suffix=".in", delete=False) as f:
             f.write(Path(path).read_text() if path else inst.to_in())
-        out = subprocess.run([str(TEAM), "/dev/null", "0"], stdin=open(f.name), capture_output=True, text=True)
+        out = subprocess.run([str(TEAM), "/dev/null", "greedy"], stdin=open(f.name), capture_output=True, text=True)
         Path(f.name).unlink()
         if out.returncode == 0:
             team = json.loads(out.stdout)["greedy_contest"]

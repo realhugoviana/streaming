@@ -4,6 +4,7 @@
 #include "src/solvers/knapsack_reopt.cpp"
 #include <vector>
 #include <unordered_map>
+#include <csignal>
 
 /*
     PARSER RELATED FUNCTIONS
@@ -458,6 +459,15 @@ void freeInstanceData(InstanceData* instance) {
     MAIN
 */
 
+// Set by SIGINT/SIGTERM: the search stops after the current move and the best solution is still printed
+volatile std::sig_atomic_t stop_requested = 0;
+
+/// @brief Signal handler asking the search loop to stop; a second signal kills the process as usual
+void requestStop(int sig) {
+    stop_requested = 1;
+    std::signal(sig, SIG_DFL);
+}
+
 /// @brief Parser of the HashCode Challenge in C++ : reads an instance and dumps it
 /// @return GlobalData gd, std::vector<Video> video_sizes, std::vector<Endpoint> endpoints and std::vector<Request> requests
 int main(int argc, char* argv[]) {
@@ -468,19 +478,26 @@ int main(int argc, char* argv[]) {
     InstanceData instance = parser();
     // showInstance(&instance);
 
-    greedy_density(&instance);
-    std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
-    int num_moves = std::max(1, instance.ip.C / 3);
-    for (int j=0; j < 5000; j++) {
-        knapsack_reopt(&instance);
-        std::cout << j << " - knapsack || contest score: " << computeContestScore(&instance) << std::endl;
-        for (int i=0; i < 30; i++) {
-            ruin_recreate(&instance, 1, num_moves);
-            std::cout << j << " - " << i << "|| contest score: " << computeContestScore(&instance) << std::endl;
-        }
-    }
-    std::cout << "contest score: " << computeContestScore(&instance) << std::endl;
+    // Ctrl-C (or kill) ends the search early but still prints the solution
+    std::signal(SIGINT, requestStop);
+    std::signal(SIGTERM, requestStop);
 
-    //instanceOut(&instance);
+    // Only the final solution goes to stdout (judge format), progress goes to stderr
+    greedy_density(&instance);
+    std::cerr << "greedy || contest score: " << computeContestScore(&instance) << std::endl;
+    int num_moves = std::max(1, instance.ip.C / 5); // taux destruction 1st param
+    for (int j=0; j < 5000 && !stop_requested; j++) {
+        for (int i=0; i < 30 && !stop_requested; i++) {
+            ruin_recreate(&instance, 1, num_moves);
+            std::cerr << j << " - " << i << "|| contest score: " << computeContestScore(&instance) << std::endl;
+        }
+        if (stop_requested) break;
+        knapsack_reopt(&instance);
+        std::cerr << j << " - knapsack || contest score: " << computeContestScore(&instance) << std::endl;
+    }
+    std::cerr << "contest score: " << computeContestScore(&instance) << std::endl;
+
+    // Both moves only keep improvements, so the current solution is the best one found
+    instanceOut(&instance);
     return 0;
 }

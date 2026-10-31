@@ -2,23 +2,21 @@ CXX      := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra
 BIN      := bin
 
-SOLVERS  := $(patsubst src/solvers/%.cpp,$(BIN)/%,$(wildcard src/solvers/*.cpp))
-TOOLS    := $(patsubst src/tools/%.cpp,$(BIN)/%,$(wildcard src/tools/*.cpp))
+# The solvers in src/solvers/ have no main(): parser.cpp includes them all
 HEADERS  := $(wildcard src/*.hpp)
+SOLVERS  := $(wildcard src/solvers/*.cpp)
 
-all: $(BIN)/parser $(SOLVERS) $(TOOLS)
+all: $(BIN)/parser $(BIN)/judge
 
-$(BIN)/parser: parser.cpp $(HEADERS) $(wildcard src/solvers/*.cpp) | $(BIN)
+$(BIN)/parser: parser.cpp $(HEADERS) $(SOLVERS) | $(BIN)
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-$(BIN)/%: src/solvers/%.cpp $(HEADERS) | $(BIN)
-	$(CXX) $(CXXFLAGS) -o $@ $<
-
-$(BIN)/%: src/tools/%.cpp $(HEADERS) | $(BIN)
-	$(CXX) $(CXXFLAGS) -o $@ $<
+# Official HashCode judge, third-party code: built without warnings
+$(BIN)/judge: src/tools/judge.cpp | $(BIN)
+	$(CXX) $(CXXFLAGS) -w -o $@ $<
 
 $(BIN):
-	mkdir -p $(BIN) output
+	mkdir -p $(BIN)
 
 clean:
 	rm -rf $(BIN)

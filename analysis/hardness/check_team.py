@@ -20,7 +20,7 @@ for i in range(n):
     inst = random_instance(rng)
     path = Path("hardness/check.in")
     path.write_text(inst.to_in())
-    subprocess.run(["bin/team_driver", "hardness/check_sol.txt", "0"], stdin=open(path), stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["bin/team_driver", "hardness/check_sol.txt", "greedy"], stdin=open(path), stdout=subprocess.DEVNULL, check=True)
     team = np.zeros((inst.V, inst.C), bool)
     for line in Path("hardness/check_sol.txt").read_text().splitlines():
         parts = list(map(int, line.split()))
