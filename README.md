@@ -52,10 +52,6 @@ cache exactly as a 0/1 knapsack, with the other caches fixed: each candidate vid
 extra latency it saves given what the other caches already serve, and the dynamic program picks the
 best set that fits in `X`.
 
-**Exact MIP** (`analysis/bounds.py`). For instances with up to 3 000 useful (video, cache) pairs
-and 30 000 (request, cache) links, the whole problem is written as a mixed-integer program and solved with HiGHS (through
-`scipy.optimize.milp`, 120 s limit). It also gives the upper bounds used in the instance study.
-
 ### Parameters
 
 | Parameter | Value | Where | Role |
@@ -106,12 +102,12 @@ Final judge scores on the 15 contest instances, keeping the best solution found 
 
 | Instance | Score | Method |
 |---|---:|---|
-| 01 | 1 005 593 | Exact MIP, proven optimal |
-| 02 | 986 110 | Exact MIP, proven optimal |
+| 01 | 986 404 | Greedy + ruin & recreate + knapsack |
+| 02 | 984 635 | Greedy + ruin & recreate + knapsack |
 | 03 | 2 550 000 | Greedy + ruin & recreate + knapsack |
-| 04 | 1 958 009 | Exact MIP (120 s) |
+| 04 | 1 956 202 | Greedy + ruin & recreate + knapsack |
 | 05 | 5 297 270 | Greedy + ruin & recreate + knapsack |
-| 06 | 2 355 465 | Exact MIP, proven optimal |
+| 06 | 1 542 411 | Greedy + ruin & recreate + knapsack |
 | 07 | 1 094 813 | Greedy + ruin & recreate + knapsack |
 | 08 | 53 411 | Greedy + ruin & recreate |
 | 09 | 1 022 332 | Greedy + ruin & recreate + knapsack |
@@ -121,13 +117,13 @@ Final judge scores on the 15 contest instances, keeping the best solution found 
 | 13 | 5 066 500 | Greedy by density |
 | 14 | 57 482 | Greedy + ruin & recreate + knapsack |
 | 15 | 292 212 | Greedy + ruin & recreate + knapsack |
-| **Total** | **22 782 717** | |
+| **Total** | **21 947 192** | |
 
 ## Instance study
 
 `analysis/` holds the study of the instances: their features, provable upper bounds (coverage
-bound, LP relaxations, MIP), how each configuration of our solvers performs on each instance, and
-experiments on small instances solved to optimality. It builds two pages, the instance atlas and a
+bound, LP relaxations), how each configuration of our solvers performs on each instance, and
+experiments on small generated instances. It builds two pages, the instance atlas and a
 step-by-step replay of the greedy and the knapsack re-optimisation. See
 [analysis/README.md](analysis/README.md).
 
@@ -139,8 +135,6 @@ Main findings:
   between caches and spread of video sizes are the features that decide which method gains most.
 - Knapsack re-optimisation pays off most where caches are tightly packed: the full pipeline scores
   +81% over the greedy on instance09, +41% on instance01 and +32% on instance15.
-- Small instances are solved exactly by the MIP, which is how instances 01, 02 and 06 reach their
-  optimum.
 
 The two presentations are in `presentations/`, with the R code of the PCA and correlation plots.
 The instance generator written for the study is in `generator/` (`git submodule update --init`).
