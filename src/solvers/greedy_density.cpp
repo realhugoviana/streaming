@@ -124,7 +124,9 @@ bool popValid(InstanceData* instance, const std::vector<std::vector<long long>>&
 /// pair with the highest gain-per-size density, until no cache has room left
 /// for a beneficial video.
 /// @param instance
-void greedy_density(InstanceData* instance) {
+/// @param p_best probability of placing the best pair; otherwise the runner-up is placed
+/// (1 = plain deterministic greedy)
+void greedy_density(InstanceData* instance, double p_best = 0.85) {
     std::random_device rd;
     std::mt19937 gen(rd());
 
@@ -158,7 +160,7 @@ void greedy_density(InstanceData* instance) {
         bool hasRunnerUp = popValid(instance, gainTable, heap, runnerUp);
 
         double prob = random_prob(gen);
-        bool takeRunnerUp = hasRunnerUp && prob >= 0.9;
+        bool takeRunnerUp = hasRunnerUp && prob >= p_best; // 2nd param, proba greedy
         GreedyCandidate selected = takeRunnerUp ? runnerUp : best;
 
         // The pair not selected is still valid: back in the heap

@@ -190,8 +190,9 @@ long long local_search(InstanceData* instance, int num_iterations) {
 /// @brief Performs num_moves random local moves to ruin the current solution
 /// @param instance
 /// @param num_moves
+/// @param p_ruin probability of removing each video of a chosen cache (1 = empty the cache)
 /// @return score of the ruined solution
-long long ruin(InstanceData* instance, int num_moves) {
+long long ruin(InstanceData* instance, int num_moves, double p_ruin = 0.85) {
     // Use C++ standard library for randomization
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -208,7 +209,7 @@ long long ruin(InstanceData* instance, int num_moves) {
             if (instance->cache_affectation[id_video][id_cache]) {
                 double coin_toss = coin(gen);
 
-                if (coin_toss < 1.5) {
+                if (coin_toss < p_ruin) { // proba ruin, 3rd param
                     add_remove(instance, id_cache, id_video);
                 }
             }
@@ -221,17 +222,18 @@ long long ruin(InstanceData* instance, int num_moves) {
 /// @param instance
 /// @param num_rr_iterations
 /// @param num_moves
-/// @param num_ls_iterations
+/// @param p_best greedy_density's probability of placing the best pair when recreating
+/// @param p_ruin ruin's probability of removing each video of a chosen cache
 /// @return score of the best solution, which is left in instance
-long long ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_moves) {
+long long ruin_recreate(InstanceData* instance, int num_rr_iterations, int num_moves, double p_best = 0.85, double p_ruin = 0.85) {
     InstanceData best_solution = deepCopyInstanceData(instance);
 
     for(int rr_i = 0; rr_i < num_rr_iterations; rr_i++) {
         InstanceData current_instance = deepCopyInstanceData(instance);
 
-        ruin(&current_instance, num_moves);
+        ruin(&current_instance, num_moves, p_ruin);
 
-        greedy_density(&current_instance);
+        greedy_density(&current_instance, p_best);
 
         // Keep the better one in best_solution, then free the other
         if (current_instance.score > best_solution.score) {
