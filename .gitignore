@@ -1,8 +1,14 @@
 # Build outputs
 /bin/
 /parser
+/judge
+/src/solvers/greedy_density
 *.exe
 *.o
+
+# Local scratch files
+/my_small.in
+/src/solvers/out.txt
 
 # Instances and solutions are not versioned (see instances/README.md)
 /instances/*
